@@ -1,0 +1,18 @@
+from django.contrib import admin
+from .models import (HomePage, WhyUsItem, About, AboutStat, AboutValue, AboutTeamMember,
+                    Contact, ContactInfo, ContactFAQ, ContactMessage, Pricing, PricingPlan, PricingFeature, PricingFAQ)
+
+admin.site.register(HomePage)
+admin.site.register(WhyUsItem)
+admin.site.register(About)
+admin.site.register(AboutStat)
+admin.site.register(AboutValue)
+admin.site.register(AboutTeamMember)
+admin.site.register(Contact)
+admin.site.register(ContactInfo)
+admin.site.register(ContactFAQ)
+admin.site.register(ContactMessage)
+admin.site.register(Pricing)
+admin.site.register(PricingPlan)
+admin.site.register(PricingFeature)
+admin.site.register(PricingFAQ)
