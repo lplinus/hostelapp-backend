@@ -61,6 +61,7 @@ class RoomTypeSerializer(serializers.ModelSerializer):
             "sharing_display",
             "base_price",
             "price",
+            "price_per_day",
             "is_available",
             "total_beds",
             "available_beds",
@@ -88,3 +89,31 @@ class RoomTypeSerializer(serializers.ModelSerializer):
                 pass
 
         return room_type
+
+    def update(self, instance, validated_data):
+        total_beds_requested = self.initial_data.get("total_beds")
+        instance = super().update(instance, validated_data)
+
+        if total_beds_requested is not None:
+            try:
+                new_total = int(total_beds_requested)
+                current_total = instance.beds.count()
+
+                if new_total > current_total:
+                    # Add beds
+                    for i in range(current_total, new_total):
+                        Bed.objects.create(
+                            room_type=instance, bed_number=f"B-{i+1}", is_available=True
+                        )
+                elif new_total < current_total:
+                    # Remove beds - only remove available beds starting from the last ones
+                    diff = current_total - new_total
+                    beds_to_remove = instance.beds.filter(is_available=True).order_by(
+                        "-id"
+                    )[:diff]
+                    for bed in beds_to_remove:
+                        bed.delete()
+            except ValueError:
+                pass
+
+        return instance

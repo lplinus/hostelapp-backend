@@ -5,6 +5,9 @@ from .models import RoomType, Bed
 from .serializers import RoomTypeSerializer, BedSerializer
 
 
+from .services import GroupedRoomsService
+
+
 class IsRoomOwner(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
@@ -33,6 +36,16 @@ class RoomTypeViewSet(viewsets.ModelViewSet):
         rooms = RoomType.objects.filter(hostel__owner=request.user)
         serializer = self.get_serializer(rooms, many=True)
         return Response(serializer.data)
+
+    @decorators.action(
+        detail=False,
+        methods=["get"],
+        url_path="grouped-my-rooms",
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def grouped_my_rooms(self, request):
+        data = GroupedRoomsService.get_grouped_rooms(user=request.user)
+        return Response(data)
 
 
 class IsBedOwner(permissions.BasePermission):

@@ -13,27 +13,29 @@ class Booking(models.Model):
         ("pending", "Pending"),
         ("confirmed", "Confirmed"),
         ("cancelled", "Cancelled"),
+        ("completed", "Completed"),
     )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name="bookings"
+        User, on_delete=models.CASCADE, related_name="bookings", null=True, blank=True
     )
 
     hostel = models.ForeignKey(
-        Hostel,
-        on_delete=models.CASCADE,
-        related_name="bookings"
+        Hostel, on_delete=models.CASCADE, related_name="bookings"
     )
 
     room_type = models.ForeignKey(
-        RoomType,
-        on_delete=models.CASCADE,
-        related_name="bookings"
+        RoomType, on_delete=models.CASCADE, related_name="bookings"
     )
+
+    guest_name = models.CharField(max_length=255, blank=True, null=True)
+    guest_email = models.EmailField(blank=True, null=True)
+    guest_age = models.IntegerField(blank=True, null=True)
+
+    adults = models.IntegerField(default=1)
+    children = models.IntegerField(default=0)
 
     check_in = models.DateField()
     check_out = models.DateField()
