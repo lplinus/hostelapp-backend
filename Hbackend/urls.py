@@ -20,13 +20,16 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 import mimetypes
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    # API Schema & Docs
-    # path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    # path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema")),
+    # DRF Spectacular schema
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/schema/swagger-ui/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/schema/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     # App URLs
+    path("api/auth/", include("accounts.auth_urls")),
     path("api/accounts/", include("accounts.urls")),
     path("api/amenities/", include("amenities.urls")),
     path("api/locations/", include("locations.urls")),
@@ -39,6 +42,19 @@ urlpatterns = [
     path("api/cms/", include("cms.urls")),
     path("api/blog/", include("blog.urls")),
     path("api/publicpages/", include("publicpages.urls")),
+    # Added directly to match exact requirement /api/dashboard/stats/
+    path(
+        "api/dashboard/stats/",
+        __import__(
+            "accounts.views.user_views", fromlist=["DashboardStatsView"]
+        ).DashboardStatsView.as_view(),
+    ),
+    path(
+        "api/users/me/",
+        __import__(
+            "accounts.views.user_views", fromlist=["UserMeView"]
+        ).UserMeView.as_view(),
+    ),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

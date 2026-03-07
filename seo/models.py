@@ -16,6 +16,7 @@ class SeoMeta(models.Model):
     # Basic SEO
     meta_title = models.CharField(max_length=255)
     meta_description = models.TextField()
+    meta_keywords = models.TextField(null=True, blank=True)
 
     canonical_url = models.URLField(blank=True, null=True)
 

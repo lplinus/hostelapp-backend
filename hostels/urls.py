@@ -13,10 +13,6 @@ router.register("images", HostelImageViewSet, basename="hostel-image")
 router.register("types", HostelTypeImageViewSet, basename="hostel-type-image")
 
 urlpatterns = [
-    path(
-        "types/<str:type_slug>/hostels/",
-        TypeHostelsAPIView.as_view(),
-        name="type-hostels",
-    ),
+    path("types/<str:type_slug>/hostels/",TypeHostelsAPIView.as_view(),name="type-hostels",),
     path("", include(router.urls)),
 ]

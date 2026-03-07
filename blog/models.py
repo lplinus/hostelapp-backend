@@ -40,6 +40,17 @@ class BlogPost(models.Model):
     title = models.CharField(max_length=255)
     slug = models.SlugField(unique=True)
 
+    meta_title = models.CharField(max_length=255,blank=True,null=True)
+    meta_description = models.TextField(blank=True,null=True)
+    meta_keywords = models.CharField(max_length=500,blank=True,null=True)
+    canonical_url = models.URLField(blank=True,null=True)
+    og_image = models.ImageField(upload_to="seo/hostels/",null=True,blank=True)
+    og_title = models.CharField(max_length=255,blank=True,null=True)
+    og_description = models.TextField(blank=True,null=True)
+    og_type = models.CharField(max_length=50,default="website")
+    structured_data = models.JSONField(blank=True,null=True)
+    is_indexed = models.BooleanField(default=True)
+
     short_description = models.TextField()
     content = models.TextField()  # Full blog content (HTML or markdown)
 
