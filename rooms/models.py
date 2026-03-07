@@ -9,7 +9,7 @@ class RoomType(models.Model):
         (2, "Double Sharing"),
         (3, "Triple Sharing"),
         (4, "Four Sharing"),
-        (5, "Five Sharing"),
+        # (5, "Five Sharing"),
     ]
 
     ROOM_CATEGORY_CHOICES = [

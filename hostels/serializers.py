@@ -1,9 +1,26 @@
 from rest_framework import serializers
 from .models import Hostel, HostelImage, DefaultHostelImage, HostelTypeImage
 from amenities.serializers import AmenitySerializer
+from amenities.models import Amenity
 from locations.serializers import CitySerializer, AreaSerializer
 from reviews.serializers import ReviewSerializer
 from rooms.serializers import RoomTypeSerializer
+
+
+import bleach
+
+
+def validate_image_file(image):
+    if not image:
+        return image
+    ext = image.name.split(".")[-1].lower()
+    if ext not in ["jpg", "jpeg", "png", "webp"]:
+        raise serializers.ValidationError(
+            "Only JPG, JPEG, PNG, and WebP files are allowed."
+        )
+    if image.size > 30 * 1024 * 1024:
+        raise serializers.ValidationError("File size must be under 30MB.")
+    return image
 
 
 class HostelImageSerializer(serializers.ModelSerializer):
@@ -11,6 +28,7 @@ class HostelImageSerializer(serializers.ModelSerializer):
         model = HostelImage
         fields = [
             "id",
+            "hostel",
             "image",
             "image2",
             "image3",
@@ -19,6 +37,18 @@ class HostelImageSerializer(serializers.ModelSerializer):
             "is_primary",
             "order",
         ]
+
+    def validate_image(self, value):
+        return validate_image_file(value)
+
+    def validate_image2(self, value):
+        return validate_image_file(value)
+
+    def validate_image3(self, value):
+        return validate_image_file(value)
+
+    def validate_image4(self, value):
+        return validate_image_file(value)
 
 
 class DefaultHostelImageSerializer(serializers.ModelSerializer):
@@ -83,8 +113,6 @@ class HostelTypeImageSerializer(serializers.ModelSerializer):
 #         ]
 
 
-
-
 class HostelSerializer(serializers.ModelSerializer):
     images = HostelImageSerializer(many=True, read_only=True)
     amenities = AmenitySerializer(many=True, read_only=True)
@@ -103,6 +131,16 @@ class HostelSerializer(serializers.ModelSerializer):
             "hostel_type",
             "room_types",
             "slug",
+            "meta_title",
+            "meta_description",
+            "meta_keywords",
+            "canonical_url",
+            "og_image",
+            "og_title",
+            "og_description",
+            "og_type",
+            "structured_data",
+            "is_indexed",
             "owner",
             "city",
             "area",
@@ -146,11 +184,64 @@ class HostelSerializer(serializers.ModelSerializer):
             return None
 
 
+class HostelWriteSerializer(serializers.ModelSerializer):
+    """Serializer for creating/updating hostels (accepts city/area as IDs)."""
+
+    amenities = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Amenity.objects.all(),
+        required=False,
+    )
+
+    class Meta:
+        model = Hostel
+        fields = [
+            "id",
+            "name",
+            "hostel_type",
+            "slug",
+            "city",
+            "area",
+            "description",
+            "short_description",
+            "price",
+            "is_discounted",
+            "discount_percentage",
+            "address",
+            "postal_code",
+            "latitude",
+            "longitude",
+            "check_in_time",
+            "check_out_time",
+            "is_active",
+            "amenities",
+        ]
+        read_only_fields = ["id"]
+
+    def validate_short_description(self, value):
+        if value:
+            return bleach.clean(value, strip=True)
+        return value
+
+    def validate_description(self, value):
+        if value:
+            allowed_tags = getattr(
+                bleach.sanitizer, "ALLOWED_TAGS", bleach.ALLOWED_TAGS
+            )
+            allowed_attrs = getattr(
+                bleach.sanitizer, "ALLOWED_ATTRIBUTES", bleach.ALLOWED_ATTRIBUTES
+            )
+            return bleach.clean(
+                value, tags=allowed_tags, attributes=allowed_attrs, strip=True
+            )
+        return value
+
+
 # class CityHostelListSerializer(serializers.ModelSerializer):
 #     area_name = serializers.CharField(source="area.name", read_only=True)
 #     city_name = serializers.CharField(source="city.name", read_only=True)
 #     thumbnail = serializers.SerializerMethodField()
-    
+
 #     base_price = serializers.DecimalField(
 #         source="price", max_digits=10, decimal_places=2, read_only=True
 #     )

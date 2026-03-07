@@ -27,6 +27,18 @@ class Hostel(models.Model):
     )
     slug = models.SlugField(unique=True)
 
+     # SEO Fields
+    meta_title = models.CharField(max_length=255,blank=True,null=True)
+    meta_description = models.TextField(blank=True,null=True)
+    meta_keywords = models.CharField(max_length=500,blank=True,null=True)
+    canonical_url = models.URLField(blank=True,null=True)
+    og_image = models.ImageField(upload_to="seo/hostels/",null=True,blank=True)
+    og_title = models.CharField(max_length=255,blank=True,null=True)
+    og_description = models.TextField(blank=True,null=True)
+    og_type = models.CharField(max_length=50,default="website")
+    structured_data = models.JSONField(blank=True,null=True)
+    is_indexed = models.BooleanField(default=True)
+
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="hostels")
 
     city = models.ForeignKey(City, on_delete=models.CASCADE, related_name="hostels")
