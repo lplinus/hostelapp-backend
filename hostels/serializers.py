@@ -147,10 +147,13 @@ class HostelSerializer(serializers.ModelSerializer):
             "description",
             "short_description",
             "price",
+            "price_per_day",
             "is_discounted",
             "discount_percentage",
             "discounted_price",
+            "discounted_price_per_day",
             "final_price",
+            "final_price_per_day",
             "address",
             "postal_code",
             "latitude",
@@ -172,6 +175,9 @@ class HostelSerializer(serializers.ModelSerializer):
 
     def get_final_price(self, obj):
         return obj.final_price
+
+    def get_final_price_per_day(self, obj):
+        return obj.final_price_per_day
 
     def get_default_images(self, obj):
         """Return default images only when the hostel has no images."""
@@ -205,6 +211,7 @@ class HostelWriteSerializer(serializers.ModelSerializer):
             "description",
             "short_description",
             "price",
+            "price_per_day",
             "is_discounted",
             "discount_percentage",
             "address",
@@ -278,9 +285,11 @@ class CityHostelListSerializer(serializers.ModelSerializer):
             "slug",
             "hostel_type",
             "price",
+            "price_per_day",
             "is_discounted",
             "discount_percentage",
             "final_price",
+            "final_price_per_day",
             "rating",
             "thumbnail",
             "area_name",

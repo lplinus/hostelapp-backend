@@ -7,7 +7,19 @@ from .serializers import BookingSerializer
 class BookingViewSet(viewsets.ModelViewSet):
     queryset = Booking.objects.select_related("user", "hostel", "room_type").all()
     serializer_class = BookingSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # def perform_create(self, serializer):
+    #     serializer.save(user=self.request.user)
+
+    def perform_create(self, serializer):
+        if self.request.user.is_authenticated:
+            serializer.save(user=self.request.user)
+        else:
+            serializer.save()
+
+    def get_permissions(self):
+        if self.action == "create":
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
         user = self.request.user

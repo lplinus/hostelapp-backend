@@ -30,7 +30,12 @@ class RoomType(models.Model):
 
     sharing_type = models.IntegerField(choices=SHARING_CHOICES, default=1)
 
-    base_price = models.DecimalField(null=True,blank=True,max_digits=10, decimal_places=2)
+    base_price = models.DecimalField(
+        null=True, blank=True, max_digits=10, decimal_places=2
+    )
+    price_per_day = models.DecimalField(
+        null=True, blank=True, max_digits=10, decimal_places=2
+    )
 
     is_available = models.BooleanField(default=True)
 
