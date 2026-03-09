@@ -43,54 +43,52 @@ class DashboardStatsView(APIView):
 
     def get(self, request):
         user = request.user
+        from django.db.models import Q, Count
+        from django.db.models.functions import TruncMonth
 
-        # Determine stats based on user role
-        if user.role == "hostel_owner":
-            # Stats for the owner's properties
-            total_hostels = Hostel.objects.filter(owner=user).count()
+        # All bookings where user is either guest or owner
+        related_bookings = Booking.objects.filter(Q(user=user) | Q(hostel__owner=user))
 
-            # Count total rooms in owner's hostels.
-            # Using RoomType count as rooms count.
-            total_rooms = sum(
-                [h.room_types.count() for h in Hostel.objects.filter(owner=user)]
-            )
+        total_hostels = Hostel.objects.filter(owner=user).count()
+        total_rooms = sum(
+            [h.room_types.count() for h in Hostel.objects.filter(owner=user)]
+        )
 
-            active_bookings = Booking.objects.filter(
-                hostel__owner=user, status="confirmed"
-            ).count()
+        active_bookings = related_bookings.filter(status="confirmed").count()
+        total_bookings = related_bookings.filter(
+            status__in=["confirmed", "completed", "pending"]
+        ).count()
+        cancelled_bookings = related_bookings.filter(status="cancelled").count()
 
-            # Revenue calculation from confirmed bookings or payments
-            # Summing the total_price of confirmed bookings
-            revenue_agg = Booking.objects.filter(
-                hostel__owner=user, status="confirmed"
-            ).aggregate(Sum("total_price"))
-            revenue = revenue_agg["total_price__sum"] or 0
-        else:
-            # Stats for guest (or all stats if admin, but requirement states just simple counts)
-            # Example response from prompt: total_hostels: 12, total_rooms: 120, etc.
-            # Stats for guest or other roles should also reflect their own properties (which will be 0 if none)
-            total_hostels = Hostel.objects.filter(owner=user).count()
-            total_rooms = sum(
-                [h.room_types.count() for h in Hostel.objects.filter(owner=user)]
-            )
-            active_bookings = Booking.objects.filter(
-                user=user, status="confirmed"
-            ).count()
-            revenue = (
-                Booking.objects.filter(user=user, status="confirmed").aggregate(
-                    Sum("total_price")
-                )["total_price__sum"]
-                or 0
-            )
+        revenue_sum = related_bookings.filter(
+            status__in=["confirmed", "completed"]
+        ).aggregate(Sum("total_price"))
+        revenue = revenue_sum["total_price__sum"] or 0
 
-        # Adjust the returned total_rooms logic if needed based on the models.
-        # Using RoomType count as rooms count.
+        # Monthly chart data (last 6 months)
+        chart_data_query = (
+            related_bookings.annotate(month=TruncMonth("created_at"))
+            .values("month")
+            .annotate(count=Count("id"))
+            .order_by("month")
+        )
+
+        chart_data = [
+            {
+                "month": item["month"].strftime("%b %Y"),
+                "count": item["count"],
+            }
+            for item in chart_data_query
+        ]
 
         return Response(
             {
                 "total_hostels": total_hostels,
                 "total_rooms": total_rooms,
                 "active_bookings": active_bookings,
+                "total_bookings": total_bookings,
+                "cancelled_bookings": cancelled_bookings,
                 "revenue": float(revenue),
+                "chart_data": chart_data,
             }
         )
