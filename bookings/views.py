@@ -5,7 +5,9 @@ from .serializers import BookingSerializer
 
 
 class BookingViewSet(viewsets.ModelViewSet):
-    queryset = Booking.objects.select_related("user", "hostel", "room_type").all()
+    queryset = Booking.objects.select_related("user", "hostel", "room_type").order_by(
+        "-created_at"
+    )
     serializer_class = BookingSerializer
     # def perform_create(self, serializer):
     #     serializer.save(user=self.request.user)
@@ -34,6 +36,8 @@ class BookingViewSet(viewsets.ModelViewSet):
         detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated]
     )
     def owner(self, request):
-        bookings = Booking.objects.filter(hostel__owner=request.user)
+        bookings = Booking.objects.filter(hostel__owner=request.user).order_by(
+            "-created_at"
+        )
         serializer = self.get_serializer(bookings, many=True)
         return Response(serializer.data)
