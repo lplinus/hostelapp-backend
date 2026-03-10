@@ -33,6 +33,7 @@ class Booking(models.Model):
     guest_name = models.CharField(max_length=255, blank=True, null=True)
     guest_email = models.EmailField(blank=True, null=True)
     guest_age = models.IntegerField(blank=True, null=True)
+    mobile_number = models.CharField(max_length=15, blank=True, null=True)
 
     adults = models.IntegerField(default=1)
     children = models.IntegerField(default=0)

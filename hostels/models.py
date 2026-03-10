@@ -92,6 +92,7 @@ class Hostel(models.Model):
     discounted_price_per_day = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True, editable=False
     )
+    is_approved = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if self.is_discounted and self.discount_percentage is not None:

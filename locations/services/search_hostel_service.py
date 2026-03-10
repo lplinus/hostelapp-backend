@@ -8,7 +8,7 @@ def search_hostels(query: str = "", budget: int = None, gender: str = ""):
     Optionally filter by budget (max price) and gender (hostel_type).
     """
     qs = (
-        Hostel.objects.filter(is_active=True)
+        Hostel.objects.filter(is_active=True, is_approved=True)
         .select_related("area", "city")
         .prefetch_related("images")
     )
