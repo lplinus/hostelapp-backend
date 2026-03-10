@@ -190,11 +190,13 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.ScopedRateThrottle",
     ),
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "1000000/day",
-        "user": "1000000/day",
-        "login": "1000000/minute",
-        "register": "1000000/minute",
+        "anon": "100000/day",
+        "user": "100000/day",
+        "login": "100000/minute",
+        "register": "100000/minute",
     },
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 50,
 }
 
 
@@ -227,6 +229,12 @@ SIMPLE_JWT = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = "DENY"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=0, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config(
+    "SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False, cast=bool
+)
+SECURE_HSTS_PRELOAD = config("SECURE_HSTS_PRELOAD", default=False, cast=bool)
 
 SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=False, cast=bool)
 CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=False, cast=bool)
