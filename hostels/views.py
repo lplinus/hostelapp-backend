@@ -29,8 +29,13 @@ class HostelViewSet(viewsets.ModelViewSet):
         .all()
     )
     serializer_class = HostelSerializer
-    permission_classes = [permissions.AllowAny]
     lookup_field = "slug"
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            return [permissions.IsAuthenticated()]
+        return [permissions.AllowAny()]
 
     def get_serializer_class(self):
         if self.action in ("create", "update", "partial_update"):
@@ -115,6 +120,7 @@ class HostelImageViewSet(viewsets.ModelViewSet):
     queryset = HostelImage.objects.select_related("hostel").all()
     serializer_class = HostelImageSerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = None
 
     def get_permissions(self):
         if self.action in ("create", "update", "partial_update", "destroy"):
@@ -143,6 +149,7 @@ class HostelTypeImageViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = HostelTypeImage.objects.all()
     serializer_class = HostelTypeImageSerializer
     permission_classes = [permissions.AllowAny]
+    pagination_class = None
 
 
 class TypeHostelsAPIView(APIView):

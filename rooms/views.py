@@ -19,6 +19,7 @@ class RoomTypeViewSet(viewsets.ModelViewSet):
     queryset = RoomType.objects.select_related("hostel").all()
     serializer_class = RoomTypeSerializer
     permission_classes = [permissions.IsAuthenticated, IsRoomOwner]
+    pagination_class = None
 
     def perform_create(self, serializer):
         hostel = serializer.validated_data.get("hostel")
@@ -59,3 +60,4 @@ class BedViewSet(viewsets.ModelViewSet):
     queryset = Bed.objects.select_related("room_type").all()
     serializer_class = BedSerializer
     permission_classes = [permissions.IsAuthenticated, IsBedOwner]
+    pagination_class = None

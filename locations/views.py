@@ -17,28 +17,48 @@ from hostels.serializers import CityHostelListSerializer
 class CountryViewSet(viewsets.ModelViewSet):
     queryset = Country.objects.all()
     serializer_class = CountrySerializer
-    permission_classes = [permissions.AllowAny]
     lookup_field = "slug"
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            return [permissions.IsAdminUser()]
+        return [permissions.AllowAny()]
 
 
 class StateViewSet(viewsets.ModelViewSet):
     queryset = State.objects.select_related("country").all()
     serializer_class = StateSerializer
-    permission_classes = [permissions.AllowAny]
     lookup_field = "slug"
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            return [permissions.IsAdminUser()]
+        return [permissions.AllowAny()]
 
 
 class CityViewSet(viewsets.ModelViewSet):
     queryset = City.objects.select_related("state").all()
     serializer_class = CitySerializer
-    permission_classes = [permissions.AllowAny]
     lookup_field = "slug"
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            return [permissions.IsAdminUser()]
+        return [permissions.AllowAny()]
 
 
 class AreaViewSet(viewsets.ModelViewSet):
     queryset = Area.objects.select_related("city").all()
     serializer_class = AreaSerializer
-    permission_classes = [permissions.AllowAny]
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            return [permissions.IsAdminUser()]
+        return [permissions.AllowAny()]
 
 
 class CityHostelsAPIView(APIView):

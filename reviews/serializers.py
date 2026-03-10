@@ -8,6 +8,7 @@ class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Review
         fields = "__all__"
+        read_only_fields = ("user",)
 
     def get_user_name(self, obj):
         if obj.user:

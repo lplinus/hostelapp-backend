@@ -9,6 +9,7 @@ class BookingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = "__all__"
+        read_only_fields = ("user",)
 
     def get_room_category(self, obj):
         if hasattr(obj, "room_type") and obj.room_type:
