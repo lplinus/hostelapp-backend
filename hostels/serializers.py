@@ -105,6 +105,7 @@ class HostelTypeImageSerializer(serializers.ModelSerializer):
 #             "is_featured",
 #             "is_verified",
 #             "is_toprated",
+#             "is_approved",
 #             "amenities",
 #             "images",
 #             "default_images",
@@ -164,6 +165,7 @@ class HostelSerializer(serializers.ModelSerializer):
             "rating_count",
             "is_active",
             "is_featured",
+            "is_approved",
             "is_verified",
             "is_toprated",
             "amenities",
@@ -295,6 +297,7 @@ class CityHostelListSerializer(serializers.ModelSerializer):
             "area_name",
             "city_name",
             "is_verified",
+            "is_approved",
         ]
 
     def get_final_price(self, obj):

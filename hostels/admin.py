@@ -5,10 +5,10 @@ from .models import Hostel, HostelImage, DefaultHostelImage, HostelTypeImage
 @admin.register(Hostel)
 class HostelAdmin(admin.ModelAdmin):
     filter_horizontal = ("amenities",)
-    list_display = ("name", "city", "price", "rating_avg", "is_active", "is_featured","is_toprated","is_verified")
+    list_display = ("name","owner","city","hostel_type", "price", "rating_avg", "is_active", "is_featured","is_toprated","is_verified","is_approved")
     list_filter = ("is_active", "is_featured", "city","is_toprated")
     search_fields = ("name", "slug")
-    list_editable=("is_toprated","is_featured","is_active","is_verified")
+    list_editable=("owner","is_toprated","is_featured","is_active","is_verified","is_approved")
 
 
 @admin.register(HostelTypeImage)

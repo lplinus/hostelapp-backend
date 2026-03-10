@@ -2,7 +2,8 @@
 
 from django.db import models
 
-#Home page model
+
+# Home page model
 class HomePage(models.Model):
     hero_title = models.CharField(max_length=255)
     hero_subtitle = models.TextField()
@@ -21,9 +22,7 @@ class HomePage(models.Model):
 
 class WhyUsItem(models.Model):
     homepage = models.ForeignKey(
-        HomePage,
-        related_name="why_items",
-        on_delete=models.CASCADE
+        HomePage, related_name="why_items", on_delete=models.CASCADE
     )
     title = models.CharField(max_length=255)
     description = models.TextField()
@@ -37,7 +36,8 @@ class WhyUsItem(models.Model):
         return self.title
 
 
-#About us===================================================
+# About us===================================================
+
 
 class About(models.Model):
     # Hero Section
@@ -70,13 +70,9 @@ class About(models.Model):
         return "About Page"
 
 
-#About us stats
+# About us stats
 class AboutStat(models.Model):
-    about = models.ForeignKey(
-        About,
-        on_delete=models.CASCADE,
-        related_name="stats"
-    )
+    about = models.ForeignKey(About, on_delete=models.CASCADE, related_name="stats")
 
     label = models.CharField(max_length=150)
     value = models.CharField(max_length=100)
@@ -89,13 +85,10 @@ class AboutStat(models.Model):
     def __str__(self) -> str:
         return self.label
 
-#About us values
+
+# About us values
 class AboutValue(models.Model):
-    about = models.ForeignKey(
-        About,
-        on_delete=models.CASCADE,
-        related_name="values"
-    )
+    about = models.ForeignKey(About, on_delete=models.CASCADE, related_name="values")
 
     icon_name = models.CharField(max_length=100)
     title = models.CharField(max_length=150)
@@ -109,12 +102,11 @@ class AboutValue(models.Model):
     def __str__(self) -> str:
         return self.title
 
-#About us team members
+
+# About us team members
 class AboutTeamMember(models.Model):
     about = models.ForeignKey(
-        About,
-        on_delete=models.CASCADE,
-        related_name="team_members"
+        About, on_delete=models.CASCADE, related_name="team_members"
     )
 
     name = models.CharField(max_length=150)
@@ -128,8 +120,6 @@ class AboutTeamMember(models.Model):
 
     def __str__(self) -> str:
         return self.name
-
-
 
 
 # conatc us page model=====================================================
@@ -160,9 +150,7 @@ class Contact(models.Model):
 # conatc info model
 class ContactInfo(models.Model):
     contact = models.ForeignKey(
-        Contact,
-        on_delete=models.CASCADE,
-        related_name="info_items"
+        Contact, on_delete=models.CASCADE, related_name="info_items"
     )
 
     icon_name = models.CharField(max_length=100)  # Mail, Phone, MapPin
@@ -178,14 +166,11 @@ class ContactInfo(models.Model):
         return self.title
 
 
-#faqs models
+# faqs models
+
 
 class ContactFAQ(models.Model):
-    contact = models.ForeignKey(
-        Contact,
-        on_delete=models.CASCADE,
-        related_name="faqs"
-    )
+    contact = models.ForeignKey(Contact, on_delete=models.CASCADE, related_name="faqs")
 
     question = models.CharField(max_length=255)
     answer = models.TextField()
@@ -197,7 +182,6 @@ class ContactFAQ(models.Model):
 
     def __str__(self) -> str:
         return self.question
-
 
 
 # Contat us form
@@ -219,6 +203,7 @@ class ContactMessage(models.Model):
 
 
 # Pricing Page Models=============================================================
+
 
 class Pricing(models.Model):
     # Hero Section
@@ -248,14 +233,9 @@ class Pricing(models.Model):
         return "Pricing Page"
 
 
-
 # Pricing
 class PricingPlan(models.Model):
-    pricing = models.ForeignKey(
-        Pricing,
-        on_delete=models.CASCADE,
-        related_name="plans"
-    )
+    pricing = models.ForeignKey(Pricing, on_delete=models.CASCADE, related_name="plans")
 
     name = models.CharField(max_length=100)
     description = models.CharField(max_length=255)
@@ -276,12 +256,9 @@ class PricingPlan(models.Model):
         return self.name
 
 
-
 class PricingFeature(models.Model):
     plan = models.ForeignKey(
-        PricingPlan,
-        on_delete=models.CASCADE,
-        related_name="features"
+        PricingPlan, on_delete=models.CASCADE, related_name="features"
     )
 
     feature_text = models.CharField(max_length=255)
@@ -296,11 +273,7 @@ class PricingFeature(models.Model):
 
 
 class PricingFAQ(models.Model):
-    pricing = models.ForeignKey(
-        Pricing,
-        on_delete=models.CASCADE,
-        related_name="faqs"
-    )
+    pricing = models.ForeignKey(Pricing, on_delete=models.CASCADE, related_name="faqs")
 
     question = models.CharField(max_length=255)
     answer = models.TextField()
@@ -313,3 +286,155 @@ class PricingFAQ(models.Model):
     def __str__(self) -> str:
         return self.question
 
+
+# Landing Page Models =============================================================
+
+
+class LandingPage(models.Model):
+    # Hero Section
+    hero_badge = models.CharField(
+        max_length=255, default="India's Most Trusted Student Hub"
+    )
+    hero_title_main = models.CharField(max_length=255)
+    hero_title_italic = models.CharField(max_length=255)
+    hero_title_footer = models.CharField(max_length=255)
+    hero_description = models.TextField()
+    hero_primary_cta_text = models.CharField(max_length=100, default="Explore Hostels")
+    hero_primary_cta_url = models.CharField(max_length=255, default="/home")
+    hero_secondary_cta_text = models.CharField(max_length=100, default="Our Standards")
+    hero_secondary_cta_url = models.CharField(max_length=255, default="#how")
+
+    # Cities Section
+    cities_eyebrow = models.CharField(max_length=255, default="Discover Your Hub")
+    cities_title_main = models.CharField(max_length=255, default="Most Popular")
+    cities_title_italic = models.CharField(max_length=255, default="Destinations")
+
+    # Features Section
+    features_eyebrow = models.CharField(max_length=255, default="The LiveHub Advantage")
+    features_title_main = models.CharField(
+        max_length=255, default="Everything You Need,"
+    )
+    features_title_italic = models.CharField(
+        max_length=255, default="Nothing You Don't."
+    )
+    features_subtitle = models.TextField()
+
+    # How It Works Section
+    how_eyebrow = models.CharField(max_length=255, default="The LiveHub Journey")
+    how_title_main = models.CharField(max_length=255, default="Booking Made")
+    how_title_italic = models.CharField(max_length=255, default="Simple.")
+    how_subtitle = models.TextField()
+
+    # Testimonials Section
+    testimonials_eyebrow = models.CharField(max_length=255, default="Real Experiences")
+    testimonials_title_main = models.CharField(max_length=255, default="Trusted by")
+    testimonials_title_italic = models.CharField(max_length=255, default="Thousands")
+
+    # CTA Section (Bottom)
+    cta_bottom_eyebrow = models.CharField(max_length=255, default="Start your journey")
+    cta_bottom_title_main = models.CharField(max_length=255, default="Ready for your")
+    cta_bottom_title_italic = models.CharField(max_length=255, default="next chapter?")
+    cta_bottom_subtitle = models.TextField()
+    cta_bottom_button_text = models.CharField(max_length=100, default="Start Exploring")
+    cta_bottom_button_url = models.CharField(max_length=255, default="/home")
+
+    is_active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "public_landing_page"
+        verbose_name = "Landing Page"
+        verbose_name_plural = "Landing Page"
+
+    def __str__(self):
+        return "Landing Page Content"
+
+
+class LandingStat(models.Model):
+    landing_page = models.ForeignKey(
+        LandingPage, related_name="stats", on_delete=models.CASCADE
+    )
+    number = models.CharField(max_length=50)
+    label = models.CharField(max_length=100)
+    icon_name = models.CharField(max_length=50)
+    color_gradient = models.CharField(max_length=100)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "public_landing_stats"
+        ordering = ["order"]
+
+    def __str__(self):
+        return f"{self.number} - {self.label}"
+
+
+class LandingCityItem(models.Model):
+    landing_page = models.ForeignKey(
+        LandingPage, related_name="cities", on_delete=models.CASCADE
+    )
+    city_name = models.CharField(max_length=100)
+    count_text = models.CharField(max_length=100)
+    image = models.ImageField(upload_to="landing/cities/", null=True, blank=True)
+    span_large = models.BooleanField(default=False)
+    gradient = models.CharField(max_length=255)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "public_landing_cities"
+        ordering = ["order"]
+
+    def __str__(self):
+        return self.city_name
+
+
+class LandingFeatureItem(models.Model):
+    landing_page = models.ForeignKey(
+        LandingPage, related_name="features", on_delete=models.CASCADE
+    )
+    icon_name = models.CharField(max_length=50)
+    title = models.CharField(max_length=255)
+    text = models.TextField()
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "public_landing_features"
+        ordering = ["order"]
+
+    def __str__(self):
+        return self.title
+
+
+class LandingStepItem(models.Model):
+    landing_page = models.ForeignKey(
+        LandingPage, related_name="steps", on_delete=models.CASCADE
+    )
+    step_number = models.CharField(max_length=10)
+    icon_name = models.CharField(max_length=50)
+    title = models.CharField(max_length=255)
+    text = models.TextField()
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "public_landing_steps"
+        ordering = ["order"]
+
+    def __str__(self):
+        return f"{self.step_number} - {self.title}"
+
+
+class LandingTestimonialItem(models.Model):
+    landing_page = models.ForeignKey(
+        LandingPage, related_name="testimonials", on_delete=models.CASCADE
+    )
+    text = models.TextField()
+    name = models.CharField(max_length=255)
+    role = models.CharField(max_length=255)
+    initial = models.CharField(max_length=10)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "public_landing_testimonials"
+        ordering = ["order"]
+
+    def __str__(self):
+        return self.name

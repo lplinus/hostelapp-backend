@@ -32,6 +32,15 @@ class HostelViewSet(viewsets.ModelViewSet):
     lookup_field = "slug"
     pagination_class = None
 
+    def get_queryset(self):
+        qs = Hostel.objects.select_related("city", "area", "owner").prefetch_related(
+            "amenities", "images", "room_types"
+        )
+        # For public actions, filter by active and approved
+        if self.action in ["list", "retrieve"]:
+            return qs.filter(is_active=True, is_approved=True)
+        return qs
+
     def get_permissions(self):
         if self.action in ("create", "update", "partial_update", "destroy"):
             return [permissions.IsAuthenticated()]
@@ -157,9 +166,9 @@ class TypeHostelsAPIView(APIView):
 
     def get(self, request, type_slug, *args, **kwargs):
         if type_slug == "all":
-            # Return all active hostels
+            # Return all active and approved hostels
             hostels = (
-                Hostel.objects.filter(is_active=True)
+                Hostel.objects.filter(is_active=True, is_approved=True)
                 .select_related("city", "area")
                 .prefetch_related("images")
             )
@@ -167,7 +176,9 @@ class TypeHostelsAPIView(APIView):
         else:
             # type_slug corresponds to hostel_type e.g., "boys", "girls"
             hostels = (
-                Hostel.objects.filter(hostel_type=type_slug, is_active=True)
+                Hostel.objects.filter(
+                    hostel_type=type_slug, is_active=True, is_approved=True
+                )
                 .select_related("city", "area")
                 .prefetch_related("images")
             )

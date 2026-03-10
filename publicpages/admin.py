@@ -1,6 +1,26 @@
 from django.contrib import admin
-from .models import (HomePage, WhyUsItem, About, AboutStat, AboutValue, AboutTeamMember,
-                    Contact, ContactInfo, ContactFAQ, ContactMessage, Pricing, PricingPlan, PricingFeature, PricingFAQ)
+from .models import (
+    HomePage,
+    WhyUsItem,
+    About,
+    AboutStat,
+    AboutValue,
+    AboutTeamMember,
+    Contact,
+    ContactInfo,
+    ContactFAQ,
+    ContactMessage,
+    Pricing,
+    PricingPlan,
+    PricingFeature,
+    PricingFAQ,
+    LandingPage,
+    LandingStat,
+    LandingCityItem,
+    LandingFeatureItem,
+    LandingStepItem,
+    LandingTestimonialItem,
+)
 
 admin.site.register(HomePage)
 admin.site.register(WhyUsItem)
@@ -16,3 +36,9 @@ admin.site.register(Pricing)
 admin.site.register(PricingPlan)
 admin.site.register(PricingFeature)
 admin.site.register(PricingFAQ)
+admin.site.register(LandingPage)
+admin.site.register(LandingStat)
+admin.site.register(LandingCityItem)
+admin.site.register(LandingFeatureItem)
+admin.site.register(LandingStepItem)
+admin.site.register(LandingTestimonialItem)

@@ -45,8 +45,10 @@ class CityViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
     def get_permissions(self):
-        if self.action in ("create", "update", "partial_update", "destroy"):
+        if self.action in ("update", "partial_update", "destroy"):
             return [permissions.IsAdminUser()]
+        if self.action == "create":
+            return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
 
 
@@ -56,8 +58,10 @@ class AreaViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
     def get_permissions(self):
-        if self.action in ("create", "update", "partial_update", "destroy"):
+        if self.action in ("update", "partial_update", "destroy"):
             return [permissions.IsAdminUser()]
+        if self.action == "create":
+            return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
 
 
@@ -66,9 +70,9 @@ class CityHostelsAPIView(APIView):
 
     def get(self, request, slug, *args, **kwargs):
         if slug == "all":
-            # Return all active hostels across all cities
+            # Return all active and approved hostels across all cities
             hostels = (
-                Hostel.objects.filter(is_active=True)
+                Hostel.objects.filter(is_active=True, is_approved=True)
                 .select_related("area", "city")
                 .prefetch_related("images")
                 .order_by("-rating_avg")
