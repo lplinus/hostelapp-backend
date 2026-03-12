@@ -61,3 +61,33 @@ class BookingViewSet(viewsets.ModelViewSet):
         )
         serializer = self.get_serializer(bookings, many=True)
         return Response(serializer.data)
+
+    @decorators.action(
+        detail=False, methods=["post"], permission_classes=[permissions.IsAuthenticated]
+    )
+    def checkin(self, request):
+        booking_id = request.data.get("booking_id")
+        if not booking_id:
+            return Response({"error": "booking_id is required"}, status=400)
+
+        try:
+            booking = Booking.objects.get(id=booking_id)
+        except Booking.DoesNotExist:
+            return Response({"error": "Booking not found"}, status=404)
+
+        if not request.user.is_staff and booking.hostel.owner != request.user:
+            raise PermissionDenied("You do not have permission to check-in this booking.")
+
+        if booking.status == "completed":
+            return Response({"error": "Booking already checked in"}, status=400)
+
+        if booking.status != "confirmed":
+            return Response({"error": "Only confirmed bookings can be checked in"}, status=400)
+
+        booking.status = "completed"
+        booking.save()
+
+        return Response({
+            "message": "Check-in successful",
+            "booking_id": booking.id
+        })

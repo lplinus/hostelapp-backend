@@ -27,10 +27,20 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "phone",
             "role",
             "is_verified",
+            "is_email_verified",
+            "is_phone_verified",
             "profile_picture",
             "date_joined",
         ]
-        read_only_fields = ["id", "username", "role", "is_verified", "date_joined"]
+        read_only_fields = [
+            "id",
+            "username",
+            "role",
+            "is_verified",
+            "is_email_verified",
+            "is_phone_verified",
+            "date_joined",
+        ]
 
     def validate_profile_picture(self, value):
         if value and value.size > 15 * 1024 * 1024:

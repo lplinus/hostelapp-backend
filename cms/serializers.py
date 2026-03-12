@@ -1,11 +1,25 @@
 from rest_framework import serializers
+from .models import TermsAndConditions, PrivacyPolicy
 
-# No models exist in cms/models.py yet.
-# When you add a ModelName to models.py, use this template:
-#
-# from .models import ModelName
-#
-# class ModelNameSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = ModelName
-#         fields = "__all__"
+
+class TermsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TermsAndConditions
+        fields = [
+            "title",
+            "content",
+            "effective_date",
+            "email",
+            "phone",
+        ]
+
+class PrivacyPolicySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PrivacyPolicy
+        fields = [
+            "title",
+            "content",
+            "effective_date",
+            "email",
+            "phone",
+        ]

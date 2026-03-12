@@ -77,3 +77,17 @@ class LoginSerializer(serializers.Serializer):
 
         attrs["user"] = user
         return attrs
+
+
+class VerifyEmailSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=6)
+
+
+class SendOTPSerializer(serializers.Serializer):
+    # Only for authenticated users updating their profile
+    pass
+
+
+class VerifyOTPSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=6)

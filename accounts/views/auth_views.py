@@ -4,9 +4,15 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.middleware.csrf import get_token
 
-from accounts.serializers.auth_serializer import RegisterSerializer, LoginSerializer
+from accounts.serializers.auth_serializer import (
+    RegisterSerializer,
+    LoginSerializer,
+    VerifyEmailSerializer,
+    VerifyOTPSerializer,
+)
 from accounts.serializers.user_serializer import UserProfileSerializer
 from accounts.services.auth_service import AuthService
+from accounts.models import User
 
 
 class RegisterView(APIView):
@@ -23,11 +29,89 @@ class RegisterView(APIView):
 
         return Response(
             {
-                "message": "Account created successfully. You can now log in.",
+                "message": "Account created successfully. Please check your email for the verification code.",
                 "user": UserProfileSerializer(user).data,
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class VerifyEmailView(APIView):
+    """POST /api/auth/verify-email/ — Verify user account via email code."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = VerifyEmailSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        code = serializer.validated_data["code"]
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        if AuthService.verify_code(user, code, "email"):
+            return Response(
+                {"message": "Email verified successfully. You can now log in."},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {"detail": "Invalid or expired code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
+class SendOTPView(APIView):
+    """POST /api/auth/send-otp/ — Send OTP to authenticated user's phone."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if not user.phone:
+            return Response(
+                {"detail": "Phone number not set in profile."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            AuthService.send_phone_otp(user)
+            return Response(
+                {"message": "OTP sent successfully."}, status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class VerifyOTPView(APIView):
+    """POST /api/auth/verify-otp/ — Verify phone OTP."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = VerifyOTPSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        code = serializer.validated_data["code"]
+
+        if AuthService.verify_code(user, code, "phone"):
+            return Response(
+                {"message": "Phone verified successfully."}, status=status.HTTP_200_OK
+            )
+        else:
+            return Response(
+                {"detail": "Invalid or expired OTP."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class LoginView(APIView):
