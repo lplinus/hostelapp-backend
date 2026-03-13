@@ -1,0 +1,199 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Booking Confirmation</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { width: 80%; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .header { background-color: #f97316; color: #ffffff; padding: 10px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 20px; }
+        .booking-details { background-color: #f8fafc; padding: 15px; border-radius: 5px; margin: 15px 0; }
+        .footer { font-size: 0.9em; color: #666; margin-top: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Booking Confirmed</h1>
+        </div>
+        <div class="content">
+            <p>Hello {{ name }},</p>
+
+            <p>Your booking has been confirmed.</p>
+            
+            <div class="booking-details">
+                <p><strong>Booking ID:</strong> {{ display_id }}</p>
+                <p><strong>Hostel:</strong> {{ hostel.name }}</p>
+
+                <p><strong>Room:</strong> {{ room.room_number }}</p>
+                <p><strong>Check-in:</strong> {{ booking.check_in }}</p>
+                <p><strong>Check-out:</strong> {{ booking.check_out }}</p>
+            </div>
+            
+            <p>Please present the QR code at the hostel reception during check-in.</p>
+        </div>
+        <div class="footer">
+            <p>Thank you for choosing LiveHub!</p>
+        </div>
+    </div>
+</body>
+</html> -->
+
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Confirmed</title>
+    <style>
+        body,
+        table,
+        td,
+        a {
+            text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+
+        table,
+        td {
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+            border-collapse: collapse !important;
+        }
+
+        body {
+            height: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            background-color: #f4f7fa;
+        }
+
+        /* Gmail/Outlook Specific Shadow Fallback */
+        .main-card {
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        @media screen and (max-width: 600px) {
+            .container {
+                width: 100% !important;
+                border: none !important;
+            }
+
+            .stack {
+                display: block !important;
+                width: 100% !important;
+                text-align: left !important;
+            }
+        }
+    </style>
+</head>
+
+<body style="margin: 0; padding: 0; background-color: #f4f7fa;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f4f7fa;">
+        <tr>
+            <td align="center" style="padding: 40px 10px;">
+
+                <table border="0" cellpadding="0" cellspacing="0" width="600" class="container main-card"
+                    style="background-color: #ffffff; border-radius: 12px; border-collapse: separate !important;">
+                    <tr>
+                        <td align="center" style="padding: 40px 40px 20px 40px;">
+                            <h2 style="color: #f97316; margin: 0; font-family: Arial, sans-serif; font-size: 28px;">
+                                LiveHub</h2>
+
+                            <div style="margin-top: 25px;">
+                                <span
+                                    style="background-color: #ecfdf5; color: #059669; padding: 8px 20px; border-radius: 50px; font-family: Arial, sans-serif; font-weight: 600; font-size: 13px;">
+                                    Your stay is confirmed!
+                                </span>
+                            </div>
+
+                            <h1
+                                style="color: #1e293b; font-family: Arial, sans-serif; font-size: 24px; margin: 25px 0 10px 0;">
+                                Hi {{ name }}, get ready for your trip.</h1>
+                            <p style="color: #64748b; font-family: Arial, sans-serif; font-size: 16px; margin: 0;">
+                                Reservation ID: <strong>#{{ display_id }}</strong></p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding: 0 40px 20px 40px;">
+                            <table border="0" cellpadding="20" cellspacing="0" width="100%"
+                                style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                <tr>
+                                    <td>
+                                        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                            <tr>
+                                                <td class="stack" width="50%" valign="top"
+                                                    style="padding-bottom: 15px;">
+                                                    <p
+                                                        style="color: #94a3b8; font-family: Arial, sans-serif; font-size: 11px; text-transform: uppercase; margin: 0 0 5px 0; font-weight: bold;">
+                                                        Hostel</p>
+                                                    <p
+                                                        style="color: #1e293b; font-family: Arial, sans-serif; font-size: 15px; margin: 0; font-weight: 600;">
+                                                        {{ hostel.name }}</p>
+                                                </td>
+                                                <td class="stack" width="50%" valign="top"
+                                                    style="padding-bottom: 15px;">
+                                                    <p
+                                                        style="color: #94a3b8; font-family: Arial, sans-serif; font-size: 11px; text-transform: uppercase; margin: 0 0 5px 0; font-weight: bold;">
+                                                        Room</p>
+                                                    <p
+                                                        style="color: #1e293b; font-family: Arial, sans-serif; font-size: 15px; margin: 0; font-weight: 600;">
+                                                        {{ room.room_number }}</p>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td class="stack" width="50%" valign="top">
+                                                    <p
+                                                        style="color: #94a3b8; font-family: Arial, sans-serif; font-size: 11px; text-transform: uppercase; margin: 0 0 5px 0; font-weight: bold;">
+                                                        Check-in</p>
+                                                    <p
+                                                        style="color: #1e293b; font-family: Arial, sans-serif; font-size: 15px; margin: 0; font-weight: 600;">
+                                                        {{ booking.check_in }}</p>
+                                                </td>
+                                                <td class="stack" width="50%" valign="top">
+                                                    <p
+                                                        style="color: #94a3b8; font-family: Arial, sans-serif; font-size: 11px; text-transform: uppercase; margin: 0 0 5px 0; font-weight: bold;">
+                                                        Check-out</p>
+                                                    <p
+                                                        style="color: #1e293b; font-family: Arial, sans-serif; font-size: 15px; margin: 0; font-weight: 600;">
+                                                        {{ booking.check_out }}</p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td align="center" style="padding: 10px 40px 40px 40px;">
+                            <p
+                                style="color: #475569; font-family: Arial, sans-serif; font-size: 13px; margin-bottom: 15px;">
+                                <strong>Receptionist:</strong> Scan below to verify check-in details.
+                            </p>
+
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=ID:{{ display_id }}%0AName:{{ name }}%0AHostel:{{ hostel.name }}%0ARoom:{{ room.room_number }}%0AIn:{{ booking.check_in }}%0AOut:{{ booking.check_out }}"
+                                alt="Check-in QR" width="160" height="160"
+                                style="display: block; border: 8px solid #ffffff; outline: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+
+                            <p
+                                style="color: #94a3b8; font-family: Arial, sans-serif; font-size: 11px; margin-top: 10px;">
+                                Digital Signature: {{ display_id }}
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+
+            </td>
+        </tr>
+    </table>
+</body>
+
+</html>

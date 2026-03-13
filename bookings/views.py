@@ -15,10 +15,15 @@ class BookingViewSet(viewsets.ModelViewSet):
     #     serializer.save(user=self.request.user)
 
     def perform_create(self, serializer):
+        from .services.booking_email_service import BookingEmailService
         if self.request.user.is_authenticated:
-            serializer.save(user=self.request.user)
+            booking = serializer.save(user=self.request.user)
         else:
-            serializer.save()
+            booking = serializer.save()
+        
+        # Trigger confirmation email
+        BookingEmailService.send_booking_confirmation(booking)
+
 
     def perform_update(self, serializer):
         obj = serializer.instance

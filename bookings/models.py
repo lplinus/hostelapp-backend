@@ -50,3 +50,40 @@ class Booking(models.Model):
 
     def __str__(self):
         return str(self.id)
+
+
+
+
+
+
+#email logs
+
+
+
+class BookingEmailLog(models.Model):
+
+    STATUS_CHOICES = (
+        ("SUCCESS", "Success"),
+        ("FAILED", "Failed"),
+    )
+
+    booking_id = models.CharField(max_length=120)
+    email = models.EmailField()
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES
+    )
+
+    error_message = models.TextField(
+        blank=True,
+        null=True
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+        db_table = "booking_email_logs"
+        ordering = ["-created_at"]

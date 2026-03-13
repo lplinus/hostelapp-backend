@@ -90,7 +90,7 @@ ROOT_URLCONF = "Hbackend.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -101,6 +101,7 @@ TEMPLATES = [
         },
     },
 ]
+
 
 WSGI_APPLICATION = "Hbackend.wsgi.application"
 
@@ -239,3 +240,26 @@ SECURE_HSTS_PRELOAD = config("SECURE_HSTS_PRELOAD", default=False, cast=bool)
 SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=False, cast=bool)
 CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=False, cast=bool)
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
+
+
+
+
+
+
+
+
+# Email Host
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+# EMAIL_HOST_USER = "lakklplbros@gmail.com"
+# EMAIL_HOST_PASSWORD = "mlun eyoc ipfl svoa"
+
+# DEFAULT_FROM_EMAIL = "LiveHub <lakklplbros@gmail.com>"
+
+
+EMAIL_HOST_USER = config("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
+DEFAULT_FROM_EMAIL = f"LiveHub <{EMAIL_HOST_USER}>"

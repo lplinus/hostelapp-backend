@@ -23,4 +23,6 @@ sqlparse==0.5.5
 tzdata==2025.3
 uritemplate==4.2.0
 webencodings==0.5.1
+colorama==0.4.6 
+qrcode==8.2
     
