@@ -2,8 +2,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from .serializers import TermsSerializer, PrivacyPolicySerializer,FAQCategorySerializer,FAQSerializer
-from .services import TermsService, PrivacyPolicyService,FAQCategoryService,FAQService
+from cms.serializers import TermsSerializer, PrivacyPolicySerializer,FAQCategorySerializer,FAQSerializer
+from cms.services import TermsService, PrivacyPolicyService,FAQCategoryService,FAQService
 
 
 class TermsView(APIView):

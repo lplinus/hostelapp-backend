@@ -42,7 +42,13 @@ class Booking(models.Model):
     check_out = models.DateField()
     guests_count = models.IntegerField()
 
+    BOOKING_TYPE_CHOICES = (
+        ("stay", "Stay"),
+        ("visit", "Visit"),
+    )
+
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    booking_type = models.CharField(max_length=10, choices=BOOKING_TYPE_CHOICES, default="stay")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="confirmed")
     # status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
 

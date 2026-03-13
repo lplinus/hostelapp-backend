@@ -131,6 +131,7 @@ class PricingPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = PricingPlan
         fields = [
+            "id",
             "name",
             "description",
             "price",
