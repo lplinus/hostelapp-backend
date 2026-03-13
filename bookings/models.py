@@ -47,8 +47,19 @@ class Booking(models.Model):
         ("visit", "Visit"),
     )
 
+    STAY_DURATION_CHOICES = (
+        ("none", "None"),
+        ("1_month", "1 Month"),
+        ("2_months", "2 Months"),
+        ("3_months", "3 Months"),
+        ("4_months", "4 Months"),
+        ("5_months", "5 Months"),
+        ("gt_5_months", "More than 5 Months"),
+    )
+
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     booking_type = models.CharField(max_length=10, choices=BOOKING_TYPE_CHOICES, default="stay")
+    stay_duration = models.CharField(max_length=20, choices=STAY_DURATION_CHOICES, default="none", null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="confirmed")
     # status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
 
