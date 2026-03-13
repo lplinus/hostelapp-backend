@@ -37,11 +37,7 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-]
 
-CORS_ALLOW_CREDENTIALS = True
 
 # Application definition
 
@@ -171,9 +167,6 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# if settings.DEBUG:
-#     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-
 
 # ========================
 # DJANGO REST FRAMEWORK
@@ -220,8 +213,11 @@ SIMPLE_JWT = {
 # CORS (For Next.js Frontend)
 # ========================
 
-# CORS_ALLOW_ALL_ORIGINS = True  # Change in production
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+]
 
+CORS_ALLOW_CREDENTIALS = True
 
 # ========================
 # DEFAULT FIELD TYPE

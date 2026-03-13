@@ -46,7 +46,16 @@ class FAQCategoryListView(APIView):
 class FAQListView(APIView):
 
     def get(self, request):
-        faqs = FAQService.get_faqs()
+        category_id = request.query_params.get('category', None)
+        faqs = FAQService.get_faqs(category_id=category_id)
+        serializer = FAQSerializer(faqs, many=True)
+        return Response(serializer.data)
+
+class FAQSearchView(APIView):
+
+    def get(self, request):
+        query = request.query_params.get('q', '')
+        faqs = FAQService.search_faqs(query)
         serializer = FAQSerializer(faqs, many=True)
         return Response(serializer.data)
 
