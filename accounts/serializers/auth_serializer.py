@@ -86,8 +86,9 @@ class VerifyEmailSerializer(serializers.Serializer):
 
 class SendOTPSerializer(serializers.Serializer):
     # Only for authenticated users updating their profile
-    pass
+    phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
 
 
 class VerifyOTPSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6)
+    phone = serializers.CharField(max_length=20, required=False, allow_blank=True)

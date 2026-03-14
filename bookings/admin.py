@@ -7,7 +7,9 @@ from django.contrib import admin
 
 
 from django.contrib import admin
-from .models import Booking, BookingEmailLog
+from .models import Booking, BookingEmailLog, BookingOTP
+
+
 
 
 @admin.register(Booking)
@@ -37,3 +39,14 @@ class BookingEmailLogAdmin(admin.ModelAdmin):
     search_fields = ("booking_id", "email")
     readonly_fields = ("created_at",)
 
+
+@admin.register(BookingOTP)
+class BookingOTPAdmin(admin.ModelAdmin):
+    list_display = (
+        "phone",
+        "code",
+        "created_at",
+    )
+    list_filter = ("created_at",)
+    search_fields = ("phone", "code")
+    readonly_fields = ("created_at",)

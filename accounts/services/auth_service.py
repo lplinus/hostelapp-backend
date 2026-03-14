@@ -1,11 +1,22 @@
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
+from accounts.models import VerificationCode
+from django.core.mail import send_mail
+from django.utils.html import strip_tags
+from django.template.loader import render_to_string
 from rest_framework_simplejwt.token_blacklist.models import (
     OutstandingToken,
     BlacklistedToken,
 )
 from rest_framework_simplejwt.exceptions import TokenError
 from accounts.models import User
+
+from dotenv import load_dotenv
+import os
+from twilio.rest import Client
+
+load_dotenv()
+
 
 
 class AuthService:
@@ -28,90 +39,128 @@ class AuthService:
             last_name=validated_data.get("last_name", ""),
             phone=validated_data.get("phone", ""),
             role=validated_data.get("role", "guest"),
-            is_active=False,  # User must verify email first
+        # user.is_active = False # Commented out email activation requirement
         )
+        user.is_active = False # Still False, phone verification will activate it
+        user.save()
 
+        # --- EMAIL VERIFICATION (COMMENTED OUT) ---
         # Generate verification code for email
-        v_code = VerificationCode.generate_code(user, "email")
+        # v_code = VerificationCode.generate_code(user, "email")
+        # AuthService.send_verification_email(user, v_code.code)
 
-        # Logic to send email
-        AuthService.send_verification_email(user, v_code.code)
-
+        # --- PHONE VERIFICATION (NEW PRIMARY) ---
+        if user.phone:
+            AuthService.send_phone_otp(user)
+        
         return user
 
     @staticmethod
     def send_verification_email(user, code):
-        """Send verification email to user."""
-        from django.core.mail import send_mail
-        from django.utils.html import strip_tags
-        from django.template.loader import render_to_string
-
-        subject = "Verify your account"
-        message = f"Your verification code is: {code}. It will expire in 10 minutes."
+        """Send verification email to user (DISABLED)."""
+       
+        # subject = "Verify your account"
+        # message = f"Your verification code is: {code}. It will expire in 10 minutes."
 
         # For development debugging
-        print(
-            f"DEBUG: Email Verification for {user.email} is {code} (Dummy Bypass: 123456)"
-        )
+        print(f"DEBUG: Email Verification for {user.email} is {code} (EMAIL DISABLED)")
 
         # In production, use real SMTP settings
-        try:
-            send_mail(
-                subject,
-                message,
-                settings.DEFAULT_FROM_EMAIL,
-                [user.email],
-                fail_silently=False,
-            )
-        except Exception as e:
-            print(f"Failed to send email: {e}")
+        # try:
+        #     send_mail(
+        #         subject,
+        #         message,
+        #         settings.DEFAULT_FROM_EMAIL,
+        #         [user.email],
+        #         fail_silently=False,
+        #     )
+        # except Exception as e:
+        #     print(f"Failed to send email: {e}")
 
     @staticmethod
-    def send_phone_otp(user):
-        """Send OTP to user's phone."""
-        if not user.phone:
-            raise ValueError("User does not have a phone number.")
-
-        from accounts.models import VerificationCode
-
+    def send_phone_otp(user, phone=None):
+        """Send OTP to user's phone or a provided phone number."""
+        target_phone = phone or user.phone
+        if not target_phone:
+            raise ValueError("No phone number provided.")
+            
         v_code = VerificationCode.generate_code(user, "phone")
 
-        # --- LOGIC FOR SMS OTP (COMMENTED FOR PRODUCTION USE) ---
-        # import requests
-        # try:
-        #     # Example for SMS API (like Twilio or MSG91)
-        #     # api_key = settings.SMS_API_KEY
-        #     # phone = user.phone
-        #     # message = f"Your Hostel App verification code is: {v_code.code}"
-        #     # response = requests.post("https://api.sms-gateway.com/send", data={"key": api_key, "to": phone, "msg": message})
-        #     # response.raise_for_status()
-        #     print(f"SMS sent to {user.phone} with code: {v_code.code}")
-        # except Exception as e:
-        #     print(f"Failed to send SMS: {e}")
-        # -------------------------------------------------------
+        # --- TWILIO SMS INTEGRATION ---
+        try:
+            account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+            auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+            from_number = os.getenv('TWILIO_FROM_NUMBER')
+            
+            sid_debug = account_sid[:5] if account_sid else "MISSING"
+            print(f"DEBUG: Twilio Prep - SID: {sid_debug}..., Token: {'Loaded' if auth_token else 'Missing'}, From: {from_number}")
+            
+            if not account_sid or not auth_token or not from_number:
+                raise ValueError("Twilio credentials missing in .env")
 
-        # For development, just log to console
-        print(
-            f"DEBUG: Phone OTP for {user.phone} is {v_code.code} (Dummy Bypass: 123456)"
-        )
+            client = Client(account_sid, auth_token)
+            
+            message_body = f"Your verification code is: {v_code.code}. It will expire in 10 minutes."
+            
+            # Ensure phone has + prefix for Twilio if it's just 10 digits
+            to_phone = target_phone
+            if len(to_phone) == 10 and not to_phone.startswith('+'):
+                to_phone = "+91" + to_phone 
+            elif not to_phone.startswith('+') and not to_phone.startswith('0'):
+                 to_phone = "+" + to_phone
+            
+            print(f"DEBUG: Attempting to send SMS to {to_phone} from {from_number}")
+
+            message = client.messages.create(
+                body=message_body,
+                from_=from_number,
+                to=to_phone
+            )
+            print(f"Twilio SMS sent to {to_phone}: {message.sid}")
+        except Exception as e:
+            print(f"CRITICAL TWILIO ERROR: {e}")
+            # Fallback for debugging
+            print(f"DEBUG: Phone OTP for {target_phone} is {v_code.code}")
+
+        # --- ORIGINAL LOGIC (COMMENTED) ---
+        # if not user.phone:
+        #     raise ValueError("User does not have a phone number.")
+        # v_code = VerificationCode.generate_code(user, "phone")
+        # # ... (rest of old code)
+        # print(f"DEBUG: Phone OTP for {user.phone} is {v_code.code} (Dummy Bypass: 123456)")
+        
         return v_code.code
 
-    @staticmethod
-    def verify_code(user, code, type):
-        """Verify the code provided by user."""
-        from accounts.models import VerificationCode
 
-        # --- DUMMY OTP BYPASS (Set to '123456' or '12345' for testing) ---
-        # This allows developers to bypass verification during development
-        if code == "123456" or code == "12345":
-            if type == "email":
-                user.is_email_verified = True
-                user.is_active = True
-            elif type == "phone":
-                user.is_phone_verified = True
-            user.save()
-            return True
-        # ----------------------------------------------------------------
+
+
+
+        #send_phone_otp by twilio
+        #--------------------------------------------
+
+    # --- ORIGINAL TWILIO PLACEHOLDER (COMMENTED) ---
+    # @staticmethod
+    # def send_otp_via_twilio(phone):
+    #     account_sid = os.getenv('account_sid')
+    #     auth_token = os.getenv('auth_token')
+    #     client = Client(account_sid, auth_token)
+    #     import random
+    #     otp = str(random.randint(100000, 999999))
+    #
+    #     client.messages.create(
+    #         body=f'Your OTP is {otp}, please do not share it with anyone.',
+    #         from_='+1(582) 264-8352',
+    #         to="+91" + phone
+    #     )
+    #     return otp
+
+
+        
+
+    @staticmethod
+    def verify_code(user, code, type, phone=None):
+        """Verify the code provided by user."""
+
 
         v_code = VerificationCode.objects.filter(
             user=user, code=code, type=type, is_used=False
@@ -123,14 +172,21 @@ class AuthService:
         v_code.is_used = True
         v_code.save()
 
-        if type == "email":
-            user.is_email_verified = True
-            user.is_active = True
-        elif type == "phone":
+        # if type == "email":
+        #     user.is_email_verified = True
+        #     user.is_active = True
+        # elif type == "phone":
+        if type == "phone":
             user.is_phone_verified = True
+            user.is_active = True # Activate user on phone verification
+            if phone:
+                user.phone = phone
 
         user.save()
         return True
+
+
+
 
     # ───────────────────────────── TOKENS ────────────────────────────────
     @staticmethod

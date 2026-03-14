@@ -8,6 +8,7 @@ from accounts.serializers.auth_serializer import (
     RegisterSerializer,
     LoginSerializer,
     VerifyEmailSerializer,
+    SendOTPSerializer,
     VerifyOTPSerializer,
 )
 from accounts.serializers.user_serializer import UserProfileSerializer
@@ -73,15 +74,21 @@ class SendOTPView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        serializer = SendOTPSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
         user = request.user
-        if not user.phone:
-            return Response(
-                {"detail": "Phone number not set in profile."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        phone = serializer.validated_data.get("phone")
+        
+        # if not user.phone: # Old check
+        #     return Response(
+        #         {"detail": "Phone number not set in profile."},
+        #         status=status.HTTP_400_BAD_REQUEST,
+        #     )
 
         try:
-            AuthService.send_phone_otp(user)
+            # AuthService.send_phone_otp(user) # Old call
+            AuthService.send_phone_otp(user, phone=phone)
             return Response(
                 {"message": "OTP sent successfully."}, status=status.HTTP_200_OK
             )
@@ -102,8 +109,10 @@ class VerifyOTPView(APIView):
 
         user = request.user
         code = serializer.validated_data["code"]
+        phone = serializer.validated_data.get("phone")
 
-        if AuthService.verify_code(user, code, "phone"):
+        # if AuthService.verify_code(user, code, "phone"): # Old call
+        if AuthService.verify_code(user, code, "phone", phone=phone):
             return Response(
                 {"message": "Phone verified successfully."}, status=status.HTTP_200_OK
             )

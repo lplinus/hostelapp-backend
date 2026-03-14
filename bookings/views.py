@@ -42,7 +42,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         instance.delete()
 
     def get_permissions(self):
-        if self.action == "create":
+        if self.action in ["create", "send_otp", "verify_otp"]:
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
@@ -96,3 +96,33 @@ class BookingViewSet(viewsets.ModelViewSet):
             "message": "Check-in successful",
             "booking_id": booking.id
         })
+
+    @decorators.action(
+        detail=False, methods=["post"], permission_classes=[permissions.AllowAny]
+    )
+    def send_otp(self, request):
+        phone = request.data.get("phone")
+        if not phone:
+            return Response({"error": "phone is required"}, status=400)
+        
+        from .services.booking_otp_service import BookingOTPService
+        try:
+            BookingOTPService.send_booking_otp(phone)
+            return Response({"message": "OTP sent successfully"})
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
+    @decorators.action(
+        detail=False, methods=["post"], permission_classes=[permissions.AllowAny]
+    )
+    def verify_otp(self, request):
+        phone = request.data.get("phone")
+        code = request.data.get("code")
+        if not phone or not code:
+            return Response({"error": "phone and code are required"}, status=400)
+        
+        from .services.booking_otp_service import BookingOTPService
+        if BookingOTPService.verify_booking_otp(phone, code):
+            return Response({"message": "Phone verified successfully"})
+        else:
+            return Response({"error": "Invalid or expired OTP"}, status=400)

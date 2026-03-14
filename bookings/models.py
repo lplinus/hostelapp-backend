@@ -75,8 +75,6 @@ class Booking(models.Model):
 
 #email logs
 
-
-
 class BookingEmailLog(models.Model):
 
     STATUS_CHOICES = (
@@ -104,3 +102,25 @@ class BookingEmailLog(models.Model):
     class Meta:
         db_table = "booking_email_logs"
         ordering = ["-created_at"]
+
+
+class BookingOTP(models.Model):
+    phone = models.CharField(max_length=20)
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            from django.utils import timezone
+            from datetime import timedelta
+            self.expires_at = timezone.now() + timedelta(minutes=10)
+        super().save(*args, **kwargs)
+
+    def is_valid(self):
+        from django.utils import timezone
+        return not self.is_used and timezone.now() < self.expires_at
+
+    def __str__(self):
+        return f"OTP for {self.phone}"
