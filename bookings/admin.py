@@ -45,6 +45,8 @@ class BookingOTPAdmin(admin.ModelAdmin):
     list_display = (
         "phone",
         "code",
+        "expires_at",
+        "is_used",
         "created_at",
     )
     list_filter = ("created_at",)
