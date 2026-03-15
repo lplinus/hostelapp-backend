@@ -33,6 +33,12 @@ class HostelImageSerializer(serializers.ModelSerializer):
             "image2",
             "image3",
             "image4",
+            "image5",
+            "image6",
+            "image7",
+            "image8",
+            "image9",
+            "image10",
             "alt_text",
             "is_primary",
             "order",
@@ -50,11 +56,29 @@ class HostelImageSerializer(serializers.ModelSerializer):
     def validate_image4(self, value):
         return validate_image_file(value)
 
+    def validate_image5(self, value):
+        return validate_image_file(value)
+
+    def validate_image6(self, value):
+        return validate_image_file(value)
+
+    def validate_image7(self, value):
+        return validate_image_file(value)
+
+    def validate_image8(self, value):
+        return validate_image_file(value)
+
+    def validate_image9(self, value):
+        return validate_image_file(value)
+
+    def validate_image10(self, value):
+        return validate_image_file(value)
+
 
 class DefaultHostelImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = DefaultHostelImage
-        fields = ["id", "image1", "image2", "image3", "image4", "alt_text"]
+        fields = ["id", "image1", "image2", "image3", "image4", "image5", "image6", "image7", "image8", "image9", "image10","alt_text"]
 
 
 class HostelTypeImageSerializer(serializers.ModelSerializer):
@@ -304,23 +328,26 @@ class CityHostelListSerializer(serializers.ModelSerializer):
         return obj.final_price
 
     def get_thumbnail(self, obj):
-        image = obj.images.filter(is_primary=True).first() or obj.images.first()
-        if image and image.image:
-            request = self.context.get("request")
-            return (
-                request.build_absolute_uri(image.image.url)
-                if request
-                else image.image.url
-            )
+        # 1. Try to find a primary or first image from the hostel's own images
+        image_obj = obj.images.filter(is_primary=True).first() or obj.images.first()
+        if image_obj:
+            # Check all 10 possible image fields in the HostelImage instance
+            for i in range(1, 11):
+                field_name = "image" if i == 1 else f"image{i}"
+                img_field = getattr(image_obj, field_name, None)
+                if img_field and hasattr(img_field, 'url'):
+                    request = self.context.get("request")
+                    return request.build_absolute_uri(img_field.url) if request else img_field.url
+
+        # 2. Fallback to singleton DefaultHostelImage (all 10 fields)
         try:
             defaults = DefaultHostelImage.objects.get(pk=1)
-            if defaults.image1:
-                request = self.context.get("request")
-                return (
-                    request.build_absolute_uri(defaults.image1.url)
-                    if request
-                    else defaults.image1.url
-                )
+            for i in range(1, 11):
+                field_name = f"image{i}"
+                img_field = getattr(defaults, field_name, None)
+                if img_field and hasattr(img_field, 'url'):
+                    request = self.context.get("request")
+                    return request.build_absolute_uri(img_field.url) if request else img_field.url
         except DefaultHostelImage.DoesNotExist:
             pass
         return None

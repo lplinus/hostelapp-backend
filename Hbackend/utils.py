@@ -46,6 +46,8 @@ def convert_to_webp(image_field, quality=80):
 
         # Build new filename with .webp extension
         old_name = image_field.name
+        old_path = image_field.path if hasattr(image_field, 'path') else None
+        
         base_name = os.path.splitext(os.path.basename(old_name))[0]
         upload_to = os.path.dirname(old_name)
         new_name = os.path.join(upload_to, f"{base_name}.webp")
@@ -53,10 +55,46 @@ def convert_to_webp(image_field, quality=80):
         # Replace the file content
         image_field.save(new_name, ContentFile(buffer.read()), save=False)
 
+        # Delete original file if it exists and wasn't already a webp
+        if old_path and os.path.exists(old_path) and not old_path.lower().endswith('.webp'):
+            try:
+                os.remove(old_path)
+            except Exception:
+                pass
+
         return new_name
     except Exception:
         # If conversion fails, keep the original
         return None
+
+
+def delete_old_image_files(instance, field_names):
+    """
+    Delete old files from storage when they are replaced by new ones.
+    Call this BEFORE process_image_fields or super().save().
+    """
+    if not instance.pk:
+        return
+    try:
+        # Get the current version of the instance from the database
+        model = instance.__class__
+        old_instance = model.objects.filter(pk=instance.pk).first()
+        if not old_instance:
+            return
+
+        for field_name in field_names:
+            old_file = getattr(old_instance, field_name, None)
+            new_file = getattr(instance, field_name, None)
+            
+            # If the file has changed and old one exists, delete it
+            if old_file and old_file.name and old_file.name != getattr(new_file, 'name', None):
+                if hasattr(old_file, 'path') and os.path.exists(old_file.path):
+                    try:
+                        os.remove(old_file.path)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
 
 
 def process_image_fields(instance, field_names, quality=80):

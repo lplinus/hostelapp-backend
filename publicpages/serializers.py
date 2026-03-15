@@ -110,10 +110,7 @@ class ContactSerializer(serializers.ModelSerializer):
 class ContactMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContactMessage
-        fields = ["name", "email", "message"]
-
-    def create(self, validated_data):
-        return ContactMessage.objects.create(**validated_data)
+        fields = ["name", "email", "phone", "message", "hostel"]
 
 
 # Pricing Plan

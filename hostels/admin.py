@@ -51,7 +51,7 @@ class DefaultHostelImageAdmin(admin.ModelAdmin):
                     "Upload fallback images here. These will be shown when a hostel "
                     "has no images uploaded. You only need to create ONE record."
                 ),
-                "fields": ("image1", "image2", "image3", "image4", "alt_text"),
+                "fields": ("image1", "image2", "image3", "image4", "image5", "image6", "image7", "image8", "image9", "image10","alt_text"),
             },
         ),
     )

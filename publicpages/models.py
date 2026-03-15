@@ -187,8 +187,22 @@ class ContactFAQ(models.Model):
 # Contat us form
 class ContactMessage(models.Model):
     name = models.CharField(max_length=150)
-    email = models.EmailField()
+    email = models.EmailField(blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
     message = models.TextField()
+
+    # New fields for "Request Callback" and "Reply"
+    hostel = models.ForeignKey(
+        "hostels.Hostel",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inquiries",
+    )
+
+    reply = models.TextField(blank=True, null=True)
+    is_replied = models.BooleanField(default=False)
+    replied_at = models.DateTimeField(null=True, blank=True)
 
     is_read = models.BooleanField(default=False)
 
@@ -199,7 +213,7 @@ class ContactMessage(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
-        return f"{self.name} - {self.email}"
+        return f"{self.name} - {self.email or self.phone}"
 
 
 # Pricing Page Models=============================================================

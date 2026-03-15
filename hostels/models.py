@@ -1,7 +1,7 @@
 from django.db import models
 from locations.models import City, Area
 from accounts.models import User
-from Hbackend.utils import process_image_fields
+from Hbackend.utils import process_image_fields, delete_old_image_files
 from decimal import Decimal
 from django.core.validators import MinValueValidator, MaxValueValidator
 
@@ -167,6 +167,7 @@ class HostelTypeImage(models.Model):
     )
 
     def save(self, *args, **kwargs):
+        delete_old_image_files(self, ["image"])
         process_image_fields(self, ["image"])
         super().save(*args, **kwargs)
 
@@ -180,14 +181,23 @@ class HostelImage(models.Model):
     image2 = models.ImageField(null=True, blank=True, upload_to="hostels/")
     image3 = models.ImageField(null=True, blank=True, upload_to="hostels/")
     image4 = models.ImageField(null=True, blank=True, upload_to="hostels/")
+    image5 = models.ImageField(null=True, blank=True, upload_to="hostels/")
+    image6 = models.ImageField(null=True, blank=True, upload_to="hostels/")
+    image7 = models.ImageField(null=True, blank=True, upload_to="hostels/")
+    image8 = models.ImageField(null=True, blank=True, upload_to="hostels/")
+    image9 = models.ImageField(null=True, blank=True, upload_to="hostels/")
+    image10 = models.ImageField(null=True, blank=True, upload_to="hostels/")
 
     alt_text = models.CharField(max_length=255)
     is_primary = models.BooleanField(default=False)
     order = models.IntegerField(default=0)
 
     def save(self, *args, **kwargs):
+        # Delete old files before processing new ones to avoid duplicates
+        fields = ["image", "image2", "image3", "image4", "image5", "image6", "image7", "image8", "image9", "image10"]
+        delete_old_image_files(self, fields)
         # Convert all image fields to WebP on save
-        process_image_fields(self, ["image", "image2", "image3", "image4"])
+        process_image_fields(self, fields)
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -202,7 +212,7 @@ class DefaultHostelImage(models.Model):
     """
 
     image1 = models.ImageField(
-        upload_to="hostels/defaults/", verbose_name="Default Image 1"
+        upload_to="hostels/defaults/", verbose_name="Default Image 1", null=True, blank=True
     )
     image2 = models.ImageField(
         upload_to="hostels/defaults/",
@@ -222,6 +232,42 @@ class DefaultHostelImage(models.Model):
         null=True,
         blank=True,
     )
+    image5 = models.ImageField(
+        upload_to="hostels/defaults/",
+        verbose_name="Default Image 5",
+        null=True,
+        blank=True,
+    )
+    image6 = models.ImageField(
+        upload_to="hostels/defaults/",
+        verbose_name="Default Image 6",
+        null=True,
+        blank=True,
+    )
+    image7 = models.ImageField(
+        upload_to="hostels/defaults/",
+        verbose_name="Default Image 7",
+        null=True,
+        blank=True,
+    )
+    image8 = models.ImageField(
+        upload_to="hostels/defaults/",
+        verbose_name="Default Image 8",
+        null=True,
+        blank=True,
+    )
+    image9 = models.ImageField(
+        upload_to="hostels/defaults/",
+        verbose_name="Default Image 9",
+        null=True,
+        blank=True,
+    )
+    image10 = models.ImageField(
+        upload_to="hostels/defaults/",
+        verbose_name="Default Image 10",
+        null=True,
+        blank=True,
+    )
 
     alt_text = models.CharField(
         max_length=255,
@@ -236,7 +282,12 @@ class DefaultHostelImage(models.Model):
     def save(self, *args, **kwargs):
         # Singleton: ensure only one row
         self.pk = 1
-        process_image_fields(self, ["image1", "image2", "image3", "image4"])
+        fields = ["image1", "image2", "image3", "image4", "image5", "image6", "image7", "image8", "image9", "image10"]
+        delete_old_image_files(self, fields)
+        process_image_fields(self, fields)
+        
+        # Pop force_insert to avoid IntegrityError in admin if pk=1 already exists
+        kwargs.pop('force_insert', None)
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
