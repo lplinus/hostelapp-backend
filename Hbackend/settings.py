@@ -35,11 +35,20 @@ SECRET_KEY = 'django-insecure--s7_)1g@6_kyeb2bxp4b0vvr-a_9c@uuor%d)-z)@&8ee@35l=
 # SECRET_KEY = config("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
+
+# SECURITY WARNING: don't run with debug turned on in production!
+# if ENVIRONMENT == 'development':
 DEBUG = True
+# else:
+    # DEBUG = False
 
 # ALLOWED_HOSTS = []
 
-ALLOWED_HOSTS = ["*"]
+# ALLOWED_HOSTS = ["https://hostelapp-backend-production-6e0b.up.railway.app"]
+
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'hostelapp-backend-production-6e0b.up.railway.app']
+
+CSRF_TRUSTED_ORIGINS =["https://hostelapp-backend-production-6e0b.up.railway.app"]
 
 
 
@@ -73,6 +82,7 @@ INSTALLED_APPS = [
     "cms",
     "blog",
     "publicpages",
+    
 ]
 
 MIDDLEWARE = [
