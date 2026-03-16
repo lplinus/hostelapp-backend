@@ -16,8 +16,8 @@ from decouple import config
 from django.conf import settings
 from django.conf.urls.static import static
 import mimetypes
-# import dj_database_url
-# import os
+import dj_database_url
+import os
 
 
 mimetypes.add_type("image/webp", ".webp", True)
