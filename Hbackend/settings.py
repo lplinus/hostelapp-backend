@@ -46,7 +46,7 @@ DEBUG = True
 
 # ALLOWED_HOSTS = ["https://hostelapp-backend-production-6e0b.up.railway.app"]
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'myhostelapp.up.railway.app/admin']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'myhostelapp.up.railway.app']
 
 CSRF_TRUSTED_ORIGINS =["https://myhostelapp.up.railway.app"]
 
