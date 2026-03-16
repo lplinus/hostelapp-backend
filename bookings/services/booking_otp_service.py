@@ -62,8 +62,8 @@ class BookingOTPService:
     def verify_booking_otp(phone, code):
         """Verify the OTP provided for a phone number."""
         # Dummy verification for testing
-        if code == "123456":
-            return True
+        # if code == "123456":
+        #    return True
 
         otp_obj = BookingOTP.objects.filter(
             phone=phone, code=code, is_used=False

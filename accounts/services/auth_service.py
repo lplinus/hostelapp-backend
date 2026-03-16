@@ -161,14 +161,14 @@ class AuthService:
     def verify_code(user, code, type, phone=None):
         """Verify the code provided by user."""
         # Dummy verification for testing
-        if code == "123456":
-            if type == "phone":
-                user.is_phone_verified = True
-                user.is_active = True
-                if phone:
-                    user.phone = phone
-                user.save()
-            return True
+        # if code == "123456":
+        #     if type == "phone":
+        #         user.is_phone_verified = True
+        #         user.is_active = True
+        #         if phone:
+        #             user.phone = phone
+        #         user.save()
+        #     return True
 
         v_code = VerificationCode.objects.filter(
             user=user, code=code, type=type, is_used=False
