@@ -31,26 +31,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure--s7_)1g@6_kyeb2bxp4b0vvr-a_9c@uuor%d)-z)@&8ee@35l='
+SECRET_KEY = "django-insecure--s7_)1g@6_kyeb2bxp4b0vvr-a_9c@uuor%d)-z)@&8ee@35l="
 # SECRET_KEY = config("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # if ENVIRONMENT == 'development':
-DEBUG = True
+DEBUG = False
 # else:
-    # DEBUG = False
+# DEBUG = False
 
 # ALLOWED_HOSTS = []
 
 # ALLOWED_HOSTS = ["https://hostelapp-backend-production-6e0b.up.railway.app"]
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'myhostelapp.up.railway.app']
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "hostelapp-backend-production-74b6.up.railway.app"]
 
-CSRF_TRUSTED_ORIGINS =["https://myhostelapp.up.railway.app"]
-
-
+CSRF_TRUSTED_ORIGINS = ["https://hostelapp-backend-production-74b6.up.railway.app"]
 
 
 # Application definition
@@ -82,16 +80,15 @@ INSTALLED_APPS = [
     "cms",
     "blog",
     "publicpages",
-    
 ]
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # WhiteNoise should be after SecurityMiddleware
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",#nelwi added white noise 
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -135,15 +132,7 @@ WSGI_APPLICATION = "Hbackend.wsgi.application"
 #     }
 # }
 
-DATABASES = {
-    "default": dj_database_url.parse(
-        config("DATABASE_URL"),
-        conn_max_age=600
-    )
-}
-
-
-  
+DATABASES = {"default": dj_database_url.parse(config("DATABASE_URL"), conn_max_age=600)}
 
 
 # Password validation
@@ -189,6 +178,16 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Enable WhiteNoise's GZip compression and unique names for static files
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -264,12 +263,6 @@ CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=False, cast=bool)
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
 
 
-
-
-
-
-
-
 # Email Host
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.gmail.com"
@@ -287,10 +280,7 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = f"LiveHub <{EMAIL_HOST_USER}>"
 
 
-
-
-
-# payment  ikeys 
+# payment  ikeys
 
 
 RAZORPAY_KEY_ID = config("RAZORPAY_KEY_ID")
