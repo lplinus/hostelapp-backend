@@ -46,7 +46,12 @@ DEBUG = False
 
 # ALLOWED_HOSTS = ["https://hostelapp-backend-production-6e0b.up.railway.app"]
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "hostelapp-backend-production-74b6.up.railway.app"]
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "hostelapp-backend-production-74b6.up.railway.app",
+    ".up.railway.app"  # This allows all Railway subdomains
+]
 
 CSRF_TRUSTED_ORIGINS = ["https://hostelapp-backend-production-74b6.up.railway.app"]
 
@@ -249,6 +254,10 @@ CORS_ALLOW_CREDENTIALS = True
 # ========================
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Railway Proxy settings
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True
