@@ -151,6 +151,8 @@ class City(models.Model):
         if not self.slug:
             self.slug = generate_unique_slug(self, "name")
 
+        from Hbackend.utils import process_image_fields, delete_old_image_files
+        delete_old_image_files(self, ["city_image"])
         # Convert image fields to WebP
         process_image_fields(
             self,

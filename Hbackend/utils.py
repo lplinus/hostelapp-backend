@@ -20,7 +20,8 @@ def convert_to_webp(image_field, quality=80):
     Returns:
         None if already WebP or no image, otherwise updates the field in-place.
     """
-    if not image_field or not image_field.name:
+    # Skip if it's a full URL (already in ImageKit)
+    if image_field.name.startswith('http'):
         return None
 
     # Skip if already WebP
@@ -46,7 +47,7 @@ def convert_to_webp(image_field, quality=80):
 
         # Build new filename with .webp extension
         old_name = image_field.name
-        old_path = image_field.path if hasattr(image_field, 'path') else None
+        old_path = image_field.path if hasattr(image_field, 'path') and image_field.path else None
         
         base_name = os.path.splitext(os.path.basename(old_name))[0]
         upload_to = os.path.dirname(old_name)
@@ -55,15 +56,18 @@ def convert_to_webp(image_field, quality=80):
         # Replace the file content
         image_field.save(new_name, ContentFile(buffer.read()), save=False)
 
-        # Delete original file if it exists and wasn't already a webp
-        if old_path and os.path.exists(old_path) and not old_path.lower().endswith('.webp'):
+        # Delete original file if it exists locally and wasn't already a webp
+        if old_path:
             try:
-                os.remove(old_path)
-            except Exception:
-                pass
+                if os.path.exists(old_path) and not old_path.lower().endswith('.webp'):
+                    os.remove(old_path)
+            except (NotImplementedError, Exception) as e:
+                print(f"DEBUG: Failed to delete old file: {e}")
 
+        print(f"DEBUG: Successfully converted to WebP: {new_name}")
         return new_name
-    except Exception:
+    except Exception as e:
+        print(f"DEBUG: WebP conversion failed for {getattr(image_field, 'name', 'unknown')}: {e}")
         # If conversion fails, keep the original
         return None
 
@@ -88,11 +92,17 @@ def delete_old_image_files(instance, field_names):
             
             # If the file has changed and old one exists, delete it
             if old_file and old_file.name and old_file.name != getattr(new_file, 'name', None):
-                if hasattr(old_file, 'path') and os.path.exists(old_file.path):
-                    try:
-                        os.remove(old_file.path)
-                    except Exception:
-                        pass
+                # Try to use storage.delete if available
+                try:
+                    instance._meta.get_field(field_name).storage.delete(old_file.name)
+                except Exception:
+                    # Fallback to os.remove if it's a local path
+                    if hasattr(old_file, 'path'):
+                        try:
+                            if os.path.exists(old_file.path):
+                                os.remove(old_file.path)
+                        except (NotImplementedError, Exception):
+                            pass
     except Exception:
         pass
 

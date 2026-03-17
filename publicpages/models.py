@@ -118,6 +118,12 @@ class AboutTeamMember(models.Model):
         db_table = "public_about_team"
         ordering = ["order"]
 
+    def save(self, *args, **kwargs):
+        from Hbackend.utils import process_image_fields, delete_old_image_files
+        delete_old_image_files(self, ["photo"])
+        process_image_fields(self, ["photo"])
+        super().save(*args, **kwargs)
+
     def __str__(self) -> str:
         return self.name
 
@@ -396,6 +402,12 @@ class LandingCityItem(models.Model):
     class Meta:
         db_table = "public_landing_cities"
         ordering = ["order"]
+
+    def save(self, *args, **kwargs):
+        from Hbackend.utils import process_image_fields, delete_old_image_files
+        delete_old_image_files(self, ["image"])
+        process_image_fields(self, ["image"])
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.city_name

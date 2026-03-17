@@ -23,6 +23,12 @@ class User(AbstractUser):
     # Keep legacy if needed, or use as global verified status
     is_verified = models.BooleanField(default=False)
 
+    def save(self, *args, **kwargs):
+        from Hbackend.utils import process_image_fields, delete_old_image_files
+        delete_old_image_files(self, ["profile_picture"])
+        process_image_fields(self, ["profile_picture"])
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.username
 

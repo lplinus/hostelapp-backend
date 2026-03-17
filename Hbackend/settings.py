@@ -38,7 +38,7 @@ SECRET_KEY = "django-insecure--s7_)1g@6_kyeb2bxp4b0vvr-a_9c@uuor%d)-z)@&8ee@35l=
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # if ENVIRONMENT == 'development':
-DEBUG = False
+DEBUG = True
 # else:
 # DEBUG = False
 
@@ -53,9 +53,9 @@ DEBUG = False
 #     ".up.railway.app",  # This allows all Railway subdomains
 # ]
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = []
 
-CSRF_TRUSTED_ORIGINS = ["https://hostelapp-backend-production-74b6.up.railway.app"]
+# CSRF_TRUSTED_ORIGINS = ["https://hostelapp-backend-production-74b6.up.railway.app"]
 
 
 # Application definition
@@ -125,21 +125,21 @@ WSGI_APPLICATION = "Hbackend.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.mysql",
-#         "NAME": config("DB_NAME"),
-#         "USER": config("DB_USER"),
-#         "PASSWORD": config("DB_PASSWORD"),
-#         "HOST": config("DB_HOST"),
-#         "PORT": config("DB_PORT"),
-#         "OPTIONS": {
-#             "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-#         },
-#     }
-# }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": config("DB_NAME"),
+        "USER": config("DB_USER"),
+        "PASSWORD": config("DB_PASSWORD"),
+        "HOST": config("DB_HOST"),
+        "PORT": config("DB_PORT"),
+        "OPTIONS": {
+            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
+    }
+}
 
-DATABASES = {"default": dj_database_url.parse(config("DATABASE_URL"), conn_max_age=600)}
+# DATABASES = {"default": dj_database_url.parse(config("DATABASE_URL"), conn_max_age=600)}
 
 
 # Password validation
@@ -189,7 +189,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # Enable WhiteNoise's GZip compression and unique names for static files
 STORAGES = {
     "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "BACKEND": "Hbackend.imagekit_storage.ImageKitStorage",
     },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
@@ -296,3 +296,8 @@ DEFAULT_FROM_EMAIL = f"LiveHub <{EMAIL_HOST_USER}>"
 
 RAZORPAY_KEY_ID = config("RAZORPAY_KEY_ID")
 RAZORPAY_KEY_SECRET = config("RAZORPAY_KEY_SECRET")
+
+# ImageKit Settings
+IMAGEKIT_PUBLIC_KEY = config("IMAGEKIT_PUBLIC_KEY")
+IMAGEKIT_PRIVATE_KEY = config("IMAGEKIT_PRIVATE_KEY")
+IMAGEKIT_URL_ENDPOINT = config("IMAGEKIT_URL_ENDPOINT")

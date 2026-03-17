@@ -2,6 +2,7 @@ from django.db import models
 from locations.models import City, Area
 from accounts.models import User
 from Hbackend.utils import process_image_fields, delete_old_image_files
+from Hbackend.imagekit_storage import ImageKitStorage   
 from decimal import Decimal
 from django.core.validators import MinValueValidator, MaxValueValidator
 
@@ -95,6 +96,9 @@ class Hostel(models.Model):
     is_approved = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
+        delete_old_image_files(self, ["og_image"])
+        process_image_fields(self, ["og_image"])
+
         if self.is_discounted and self.discount_percentage is not None:
             if self.price is not None:
                 discount_amount = (self.price * self.discount_percentage) / Decimal(
@@ -283,6 +287,7 @@ class DefaultHostelImage(models.Model):
         # Singleton: ensure only one row
         self.pk = 1
         fields = ["image1", "image2", "image3", "image4", "image5", "image6", "image7", "image8", "image9", "image10"]
+        from Hbackend.utils import process_image_fields, delete_old_image_files
         delete_old_image_files(self, fields)
         process_image_fields(self, fields)
         

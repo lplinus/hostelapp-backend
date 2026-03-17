@@ -1,5 +1,4 @@
 from django.db import models
-from Hbackend.utils import process_image_fields
 
 
 # Create your models here.
@@ -70,11 +69,11 @@ class BlogPost(models.Model):
         ordering = ["-created_at"]
 
     def save(self, *args, **kwargs):
+        from Hbackend.utils import process_image_fields, delete_old_image_files
+        fields = ["banner_image", "featured_image", "featured_image2", "featured_image3", "og_image"]
+        delete_old_image_files(self, fields)
         # Convert all image fields to WebP on save
-        process_image_fields(
-            self,
-            ["banner_image", "featured_image", "featured_image2", "featured_image3"],
-        )
+        process_image_fields(self, fields)
         super().save(*args, **kwargs)
 
     def __str__(self) -> str:
