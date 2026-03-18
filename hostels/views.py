@@ -32,6 +32,23 @@ class HostelViewSet(viewsets.ModelViewSet):
     lookup_field = "slug"
     pagination_class = None
 
+    def get_object(self):
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Check if we have 'id' or 'hostel_id' in kwargs instead of slug
+        id_val = self.kwargs.get('id') or self.kwargs.get('hostel_id')
+        
+        if id_val:
+            obj = get_object_or_404(queryset, id=id_val)
+        else:
+            # Fallback to the default slug lookup
+            lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+            filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
+            obj = get_object_or_404(queryset, **filter_kwargs)
+            
+        self.check_object_permissions(self.request, obj)
+        return obj
+
     def get_queryset(self):
         qs = Hostel.objects.select_related("city", "area", "owner").prefetch_related(
             "amenities", "images", "room_types"

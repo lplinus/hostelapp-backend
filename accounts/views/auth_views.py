@@ -144,8 +144,9 @@ class LoginView(APIView):
             status=status.HTTP_200_OK,
         )
 
-        # Set refresh token as HttpOnly cookie
+        # Set tokens as HttpOnly cookies so user stays logged in across refreshes
         AuthService.set_refresh_cookie(response, tokens["refresh"])
+        AuthService.set_access_cookie(response, tokens["access"])
 
         from django.conf import settings
 
@@ -156,7 +157,7 @@ class LoginView(APIView):
             httponly=False,  # Must be readable by JS
             secure=settings.CSRF_COOKIE_SECURE,  # Dynamic based on env
             samesite="Lax",
-            max_age=7 * 24 * 60 * 60,
+            max_age=30 * 24 * 60 * 60,
             path="/",
         )
 
@@ -180,6 +181,7 @@ class LogoutView(APIView):
         )
 
         AuthService.delete_refresh_cookie(response)
+        AuthService.delete_access_cookie(response)
 
         # Clear CSRF cookie
         response.delete_cookie("csrftoken", path="/", samesite="Lax")
@@ -214,8 +216,9 @@ class RefreshView(APIView):
             status=status.HTTP_200_OK,
         )
 
-        # Rotate: set the new refresh token cookie
+        # Rotate: set the new refresh + access token cookies
         AuthService.set_refresh_cookie(response, tokens["refresh"])
+        AuthService.set_access_cookie(response, tokens["access"])
 
         return response
 

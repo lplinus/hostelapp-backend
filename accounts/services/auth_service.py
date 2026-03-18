@@ -249,7 +249,21 @@ class AuthService:
             httponly=True,
             secure=not settings.DEBUG,  # True in production
             samesite="Lax",
-            max_age=7 * 24 * 60 * 60,  # 7 days
+            max_age=30 * 24 * 60 * 60,  # 30 days
+            path="/",
+        )
+        return response
+
+    @staticmethod
+    def set_access_cookie(response, access_token: str):
+        """Set the access token as an HttpOnly cookie on the response."""
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            secure=not settings.DEBUG,
+            samesite="Lax",
+            max_age=10 * 60,  # 10 minutes (matches ACCESS_TOKEN_LIFETIME)
             path="/",
         )
         return response
@@ -259,6 +273,16 @@ class AuthService:
         """Remove the refresh token cookie."""
         response.delete_cookie(
             key="refresh_token",
+            path="/",
+            samesite="Lax",
+        )
+        return response
+
+    @staticmethod
+    def delete_access_cookie(response):
+        """Remove the access token cookie."""
+        response.delete_cookie(
+            key="access_token",
             path="/",
             samesite="Lax",
         )

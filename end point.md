@@ -32,16 +32,23 @@ This document provides a comprehensive list of API endpoints for testing in Post
 
 ---
 
-## 🏢 Hostels & Rooms
+## 🏢 Hostels, Rooms & Amenities
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | **GET** | `/api/hostels/hostels/` | List all hostels |
 | **GET** | `/api/hostels/hostels/{id}/` | Get hostel details |
+| **GET** | `/api/hostels/images/` | List all hostel images |
+| **GET** | `/api/hostels/images/{id}/` | Get hostel image details |
+| **GET** | `/api/hostels/types/` | List all hostel types |
+| **GET** | `/api/hostels/types/{id}/` | Get hostel type details |
 | **GET** | `/api/hostels/types/{slug}/hostels/` | List hostels by category |
 | **GET** | `/api/rooms/room-types/` | List room types |
+| **GET** | `/api/rooms/room-types/{id}/` | Get room type details |
 | **GET** | `/api/rooms/beds/` | List available beds |
+| **GET** | `/api/rooms/beds/{id}/` | Get bed details |
 | **GET** | `/api/amenities/` | List all amenities |
+| **GET** | `/api/amenities/{id}/` | Get amenity details |
 
 ---
 
@@ -50,9 +57,13 @@ This document provides a comprehensive list of API endpoints for testing in Post
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | **GET** | `/api/locations/countries/` | List countries |
+| **GET** | `/api/locations/countries/{id}/` | Get country details |
 | **GET** | `/api/locations/states/` | List states |
+| **GET** | `/api/locations/states/{id}/` | Get state details |
 | **GET** | `/api/locations/cities/` | List cities |
+| **GET** | `/api/locations/cities/{id}/` | Get city details |
 | **GET** | `/api/locations/areas/` | List areas |
+| **GET** | `/api/locations/areas/{id}/` | Get area details |
 | **GET** | `/api/locations/search/?q=value` | Search hostels/locations |
 | **GET** | `/api/locations/cities/{slug}/hostels/` | Hostels in a specific city |
 
@@ -62,9 +73,11 @@ This document provides a comprehensive list of API endpoints for testing in Post
 
 | Method | Endpoint | Description | Sample Body |
 | :--- | :--- | :--- | :--- |
-| **GET** | `/api/bookings/` | My bookings (Auth Req) | None |
+| **GET** | `/api/bookings/` | List my bookings (Auth Req) | None |
+| **GET** | `/api/bookings/{id}/` | Get booking details | None |
 | **POST** | `/api/bookings/` | Create a booking | `{"hostel": 1, "room_type": 1, "check_in": "2024-04-01", "guest_name": "John Doe", "mobile_number": "1234567890", "guest_age": 25}` |
 | **GET** | `/api/reviews/` | List reviews | None |
+| **GET** | `/api/reviews/{id}/` | Get review details | None |
 | **POST** | `/api/reviews/` | Post a review | `{"hostel": 1, "rating": 5, "comment": "Great stay!"}` |
 
 ---
@@ -74,7 +87,9 @@ This document provides a comprehensive list of API endpoints for testing in Post
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | **GET** | `/api/payments/` | List payments |
+| **GET** | `/api/payments/{id}/` | Get payment details |
 | **GET** | `/api/payments/subscriptions/` | List subscription plans |
+| **GET** | `/api/payments/subscriptions/{id}/` | Get subscription plan details |
 
 ---
 
@@ -84,9 +99,14 @@ This document provides a comprehensive list of API endpoints for testing in Post
 | :--- | :--- | :--- |
 | **GET** | `/api/cms/terms-and-conditions/` | Terms and conditions |
 | **GET** | `/api/cms/privacy-policy/` | Privacy policy |
+| **GET** | `/api/cms/faq-categories/` | List FAQ categories |
 | **GET** | `/api/cms/faqs/` | List FAQs |
+| **GET** | `/api/cms/faqs/search/?q=value` | Search FAQs |
+| **GET** | `/api/cms/faqs/{slug}/` | Get FAQ details |
 | **GET** | `/api/blog/blog/` | Blog page data |
-| **GET** | `/api/blog/posts/` | List blog posts |
+| **GET** | `/api/blog/blog/posts/` | List blog posts |
+| **GET** | `/api/blog/blog/posts/{slug}/` | Get blog post details |
+| **GET** | `/api/blog/blog/categories/` | List blog categories |
 
 ---
 
@@ -96,8 +116,12 @@ This document provides a comprehensive list of API endpoints for testing in Post
 | :--- | :--- | :--- |
 | **GET** | `/api/publicpages/homepage/` | Homepage content |
 | **GET** | `/api/publicpages/landingpage/` | Landing page content |
-| **POST** | `/api/publicpages/contact/message/` | Send contact message |
+| **GET** | `/api/publicpages/about/` | About page content |
+| **GET** | `/api/publicpages/contact/` | Contact page content |
+| **POST**| `/api/publicpages/contact/message/` | Send contact message |
 | **GET** | `/api/publicpages/pricing/` | Pricing info |
+| **GET** | `/api/publicpages/admin/homepage/` | Admin homepage content |
+| **GET** | `/api/publicpages/admin/whyus/` | Admin why us content |
 
 ---
 
@@ -105,5 +129,8 @@ This document provides a comprehensive list of API endpoints for testing in Post
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| **GET** | `/api/schema/swagger-ui/` | Interactive API Docs |
+| **GET** | `/api/schema/` | OpenAPI schema |
+| **GET** | `/api/schema/swagger-ui/` | Interactive API Docs (Swagger) |
+| **GET** | `/api/schema/redoc/` | Interactive API Docs (ReDoc) |
 | **GET** | `/api/seo/` | SEO Metadata |
+| **GET** | `/api/seo/{id}/` | Get SEO Metadata details |
