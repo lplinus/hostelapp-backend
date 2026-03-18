@@ -93,7 +93,7 @@ class AuthService:
             from_number = os.getenv('TWILIO_FROM_NUMBER')
             
             sid_debug = account_sid[:5] if account_sid else "MISSING"
-            print(f"DEBUG: Twilio Prep - SID: {sid_debug}..., Token: {'Loaded' if auth_token else 'Missing'}, From: {from_number}")
+            # print(f"DEBUG: Twilio Prep - SID: {sid_debug}..., Token: {'Loaded' if auth_token else 'Missing'}, From: {from_number}")
             
             if not account_sid or not auth_token or not from_number:
                 raise ValueError("Twilio credentials missing in .env")
@@ -109,18 +109,18 @@ class AuthService:
             elif not to_phone.startswith('+') and not to_phone.startswith('0'):
                  to_phone = "+" + to_phone
             
-            print(f"DEBUG: Attempting to send SMS to {to_phone} from {from_number}")
+            # print(f"DEBUG: Attempting to send SMS to {to_phone} from {from_number}")
 
             message = client.messages.create(
                 body=message_body,
                 from_=from_number,
                 to=to_phone
             )
-            print(f"Twilio SMS sent to {to_phone}: {message.sid}")
+            # print(f"Twilio SMS sent to {to_phone}: {message.sid}")
         except Exception as e:
             print(f"CRITICAL TWILIO ERROR: {e}")
             # Fallback for debugging
-            print(f"DEBUG: Phone OTP for {target_phone} is {v_code.code}")
+            # print(f"DEBUG: Phone OTP for {target_phone} is {v_code.code}")
 
         # --- ORIGINAL LOGIC (COMMENTED) ---
         # if not user.phone:
