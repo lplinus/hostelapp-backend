@@ -1,14 +1,23 @@
+import logging
 import uuid
-from django.shortcuts import get_object_or_404
+
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
+
 from .models import Payment, Subscription
 from .serializers import PaymentSerializer, SubscriptionSerializer
-from .razorpayservice import create_payment_order, verify_payment
-from bookings.models import Booking
+from .services.payment_service import PaymentService, PaymentError
 
+logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PAYMENT VIEWSET — thin views, business logic in PaymentService
+# ═══════════════════════════════════════════════════════════════════════════
 
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.select_related("booking").all()
@@ -50,63 +59,79 @@ class PaymentViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("You do not own this payment.")
         instance.delete()
 
+    # ─── Create Razorpay Order (Public — guest checkout) ─────────────────
     @action(detail=False, methods=["post"])
     def create_razorpay_order(self, request):
         booking_id = request.data.get("booking_id")
-        booking = get_object_or_404(Booking, id=booking_id)
-
-        # Check ownership
-        if booking.user and booking.user != request.user and not request.user.is_staff:
-             raise PermissionDenied("You do not own this booking.")
+        if not booking_id:
+            return Response(
+                {"detail": "booking_id is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
-            order = create_payment_order(booking.total_price, str(booking.id))
-            
-            # Create or update payment record
-            payment, created = Payment.objects.update_or_create(
-                booking=booking,
-                defaults={
-                    "provider": "razorpay",
-                    "transaction_id": order["id"],
-                    "amount": booking.total_price,
-                    "status": "pending",
-                    "razorpay_order_id": order["id"]
-                }
+            result = PaymentService.create_order(booking_id)
+            return Response(result, status=status.HTTP_200_OK)
+        except PaymentError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            
-            return Response({
-                "order_id": order["id"],
-                "amount": order["amount"],
-                "currency": order["currency"]
-            })
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    # ─── Verify Razorpay Payment (Public — frontend callback) ───────────
     @action(detail=False, methods=["post"])
     def verify_razorpay_payment(self, request):
-        try:
-            # First verify the signature
-            verify_payment(request.data)
-            
-            order_id = request.data.get("order_id")
-            payment_id = request.data.get("payment_id")
-            signature = request.data.get("signature")
-            
-            payment = get_object_or_404(Payment, razorpay_order_id=order_id)
-            payment.status = "captured"
-            payment.razorpay_payment_id = payment_id
-            payment.razorpay_signature = signature
-            payment.save()
-            
-            # Update booking status
-            booking = payment.booking
-            booking.status = "confirmed"
-            booking.save()
-            
-            return Response({"status": "Payment verified and booking confirmed"})
-        except Exception:
-            return Response({"error": "Payment verification failed"}, status=status.HTTP_400_BAD_REQUEST)
+        order_id = request.data.get("order_id")
+        payment_id = request.data.get("payment_id")
+        signature = request.data.get("signature")
 
+        try:
+            result = PaymentService.verify_payment(order_id, payment_id, signature)
+            return Response(result, status=status.HTTP_200_OK)
+        except PaymentError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# RAZORPAY WEBHOOK — csrf_exempt, standalone view
+# ═══════════════════════════════════════════════════════════════════════════
+
+@csrf_exempt
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def razorpay_webhook(request):
+    """
+    POST /api/payments/webhook/
+
+    Razorpay calls this server-to-server.
+    This is the PRIMARY source of truth for payment confirmation.
+    The frontend verify endpoint is a secondary fallback.
+    """
+    signature = request.META.get("HTTP_X_RAZORPAY_SIGNATURE", "")
+
+    if not signature:
+        return Response(
+            {"detail": "Missing webhook signature."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        result = PaymentService.handle_webhook(request.body, signature)
+        return Response(result, status=status.HTTP_200_OK)
+    except PaymentError as e:
+        logger.warning("Webhook rejected: %s", e)
+        return Response(
+            {"detail": str(e)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SUBSCRIPTION VIEWSET — untouched
+# ═══════════════════════════════════════════════════════════════════════════
 
 class SubscriptionViewSet(viewsets.ModelViewSet):
     queryset = Subscription.objects.all()
@@ -132,7 +157,6 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         amount_paid = plan.price
 
         # Set 3 months (90 days) duration
-        from django.utils import timezone
         from datetime import timedelta
         start_date = timezone.now()
         end_date = start_date + timedelta(days=90)

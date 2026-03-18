@@ -5,25 +5,36 @@ from publicpages.models import PricingPlan
 
 
 class Payment(models.Model):
+    STATUS_CHOICES = (
+        ("pending", "Pending"),
+        ("captured", "Captured"),
+        ("failed", "Failed"),
+    )
+
     booking = models.OneToOneField(
         Booking,
         on_delete=models.CASCADE,
         related_name="payment"
     )
 
-    provider = models.CharField(max_length=50)
-    transaction_id = models.CharField(max_length=255)
+    provider = models.CharField(max_length=50, default="razorpay")
+    transaction_id = models.CharField(max_length=255, blank=True, default="")
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    status = models.CharField(max_length=50, default="pending")
-    
-    razorpay_order_id = models.CharField(max_length=255, blank=True, default="")
+    status = models.CharField(
+        max_length=50, choices=STATUS_CHOICES, default="pending", db_index=True
+    )
+
+    razorpay_order_id = models.CharField(
+        max_length=255, unique=True, blank=True, null=True
+    )
     razorpay_payment_id = models.CharField(max_length=255, blank=True, default="")
     razorpay_signature = models.CharField(max_length=255, blank=True, default="")
 
     paid_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.provider} - {self.transaction_id}"
+        return f"{self.provider} - {self.razorpay_order_id or self.transaction_id}"
 
 
 class Subscription(models.Model):
