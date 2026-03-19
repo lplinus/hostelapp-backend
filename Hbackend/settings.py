@@ -210,11 +210,22 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
         "rest_framework.throttling.ScopedRateThrottle",
     ),
+    # 🔥 ADD THIS
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ],
+    #login and other troller rated
+    # "DEFAULT_THROTTLE_RATES": {
+    #     "anon": "1000/minute",
+    #     "user": "1000/minute",
+    #     "login": "100/minute",
+    #     "register": "100/minute",
+    # },
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "100000/day",
-        "user": "100000/day",
-        "login": "100000/minute",
-        "register": "100000/minute",
+    "anon": "300/day",
+    "user": "2000/day",
+    "login": "20/minute",
+    "register": "10/minute",
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
@@ -299,7 +310,7 @@ EMAIL_USE_TLS = True
 
 EMAIL_HOST_USER = config("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
-DEFAULT_FROM_EMAIL = f"LiveHub <{EMAIL_HOST_USER}>"
+DEFAULT_FROM_EMAIL = f"Hostel In <{EMAIL_HOST_USER}>"
 
 
 # payment  ikeys

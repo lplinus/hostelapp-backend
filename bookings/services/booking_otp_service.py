@@ -37,7 +37,7 @@ class BookingOTPService:
 
             client = Client(account_sid, auth_token)
             
-            message_body = f"Your StayNest booking verification code is: {code}. Valid for 10 minutes."
+            message_body = f"Your Hostel In booking verification code is: {code}. Valid for 10 minutes."
             
             # Ensure phone has + prefix
             to_phone = phone
