@@ -8,12 +8,13 @@ from django.contrib import admin
 
 from django.contrib import admin
 from .models import Booking, BookingEmailLog, BookingOTP
+from Hbackend.base_models import SoftDeleteAdmin
 
 
 
 
 @admin.register(Booking)
-class BookingAdmin(admin.ModelAdmin):
+class BookingAdmin(SoftDeleteAdmin):
     list_display = (
         "id",
         "user",

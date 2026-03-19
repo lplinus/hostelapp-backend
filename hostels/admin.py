@@ -1,9 +1,10 @@
 from django.contrib import admin
 from .models import Hostel, HostelImage, DefaultHostelImage, HostelTypeImage
+from Hbackend.base_models import SoftDeleteAdmin
 
 
 @admin.register(Hostel)
-class HostelAdmin(admin.ModelAdmin):
+class HostelAdmin(SoftDeleteAdmin):
     filter_horizontal = ("amenities",)
     list_display = ("name","owner","city","hostel_type", "price", "rating_avg", "is_active", "is_featured","is_toprated","is_verified","is_approved")
     list_filter = ("is_active", "is_featured", "city","is_toprated")
@@ -12,7 +13,7 @@ class HostelAdmin(admin.ModelAdmin):
 
 
 @admin.register(HostelTypeImage)
-class HostelTypeImageAdmin(admin.ModelAdmin):
+class HostelTypeImageAdmin(SoftDeleteAdmin):
     """
     Admin for HostelTypeImage.
     Only one record allowed — managed via Admin.
@@ -31,7 +32,7 @@ class HostelTypeImageAdmin(admin.ModelAdmin):
 
 
 @admin.register(HostelImage)
-class HostelImageAdmin(admin.ModelAdmin):
+class HostelImageAdmin(SoftDeleteAdmin):
     list_display = ("hostel", "alt_text", "is_primary", "order")
     list_filter = ("hostel", "is_primary")
 

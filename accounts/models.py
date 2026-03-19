@@ -3,9 +3,16 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from datetime import timedelta
 import random
+from django.contrib.auth.models import UserManager as DjangoUserManager
+from Hbackend.base_models import SoftDeleteModel, SoftDeleteManager
 
 
-class User(AbstractUser):
+class UserManager(DjangoUserManager):
+    def get_queryset(self):
+        return super().get_queryset().filter(is_deleted=0)
+
+
+class User(AbstractUser, SoftDeleteModel):
     ROLE_CHOICES = (
         ("guest", "Guest"),
         ("hostel_owner", "Hostel Owner"),
@@ -33,7 +40,7 @@ class User(AbstractUser):
         return self.username
 
 
-class VerificationCode(models.Model):
+class VerificationCode(SoftDeleteModel):
     TYPE_CHOICES = (
         ("email", "Email"),
         ("phone", "Phone"),

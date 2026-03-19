@@ -6,9 +6,10 @@ from accounts.models import User
 from hostels.models import Hostel
 from rooms.models import RoomType
 import uuid
+from Hbackend.base_models import SoftDeleteModel
 
 
-class Booking(models.Model):
+class Booking(SoftDeleteModel):
     STATUS_CHOICES = (
         ("pending", "Pending"),
         ("confirmed", "Confirmed"),

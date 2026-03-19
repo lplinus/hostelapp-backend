@@ -117,6 +117,10 @@
                                 Hi {{ name }}, get ready for your trip.</h1>
                             <p style="color: #64748b; font-family: Arial, sans-serif; font-size: 16px; margin: 0;">
                                 Reservation ID: <strong>#{{ display_id }}</strong></p>
+                            {% if payment_id %}
+                            <p style="color: #64748b; font-family: Arial, sans-serif; font-size: 14px; margin: 5px 0 0 0;">
+                                Payment ID: <strong>{{ payment_id }}</strong></p>
+                            {% endif %}
                         </td>
                     </tr>
 
@@ -179,7 +183,7 @@
                                 <strong>Receptionist:</strong> Scan below to verify check-in details.
                             </p>
 
-                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=ID:{{ display_id }}%0AName:{{ name }}%0AHostel:{{ hostel.name }}%0ARoom:{{ room.room_number }}%0AIn:{{ booking.check_in }}%0AOut:{{ booking.check_out }}"
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=ID:{{ display_id }}%0AName:{{ name }}%0AHostel:{{ hostel.name }}%0ARoom:{{ room.room_number }}%0AIn:{{ booking.check_in }}%0AOut:{{ booking.check_out }}{% if payment_id %}%0APaymentID:{{ payment_id }}{% endif %}"
                                 alt="Check-in QR" width="160" height="160"
                                 style="display: block; border: 8px solid #ffffff; outline: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
 

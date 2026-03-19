@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class BookingEmailService:
 
     @staticmethod
-    def send_booking_confirmation(booking):
+    def send_booking_confirmation(booking, payment_id=None):
         """
         Send a booking confirmation email with QR code
         and track email delivery status.
@@ -34,7 +34,8 @@ class BookingEmailService:
                 f"Hostel: {hostel.name}\n"
                 f"Room: {room_type.get_room_category_display()}\n"
                 f"Check-in: {booking.check_in}\n"
-                f"Check-out: {booking.check_out}"
+                f"Check-out: {booking.check_out}\n"
+                f"Payment ID: {payment_id or 'N/A'}"
             )
 
             context = {
@@ -49,6 +50,7 @@ class BookingEmailService:
                 },
                 "check_in": booking.check_in,
                 "check_out": booking.check_out,
+                "payment_id": payment_id,
             }
 
             subject = f"Booking Confirmed - {hostel.name}"

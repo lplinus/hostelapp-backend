@@ -201,11 +201,12 @@ class PaymentService:
         logger.info("Webhook: Payment %s confirmed for booking %s", rz_order_id, payment.booking_id)
         return {"detail": "Webhook processed. Payment confirmed."}
 
-    # ─── INTERNAL: atomic confirm ────────────────────────────────────────
     @staticmethod
     @transaction.atomic
     def _confirm_payment(payment: Payment, payment_id: str, signature: str):
         """Atomically mark payment as captured and booking as confirmed."""
+        from bookings.services.booking_email_service import BookingEmailService
+        
         payment.status = "captured"
         payment.razorpay_payment_id = payment_id
         payment.razorpay_signature = signature
@@ -216,3 +217,6 @@ class PaymentService:
         booking = payment.booking
         booking.status = "confirmed"
         booking.save(update_fields=["status"])
+        
+        # Trigger confirmation email ONLY after successful payment confirmation
+        BookingEmailService.send_booking_confirmation(booking, payment_id=payment_id)

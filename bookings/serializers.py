@@ -5,6 +5,8 @@ from .models import Booking
 class BookingSerializer(serializers.ModelSerializer):
     hostel_name = serializers.ReadOnlyField(source="hostel.name")
     room_category = serializers.SerializerMethodField()
+    payment_id = serializers.SerializerMethodField()
+    payment_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -35,4 +37,14 @@ class BookingSerializer(serializers.ModelSerializer):
     def get_room_category(self, obj):
         if hasattr(obj, "room_type") and obj.room_type:
             return f"{obj.room_type.get_room_category_display()} - {obj.room_type.get_sharing_type_display()}"
+        return None
+
+    def get_payment_id(self, obj):
+        if hasattr(obj, "payment"):
+            return obj.payment.razorpay_payment_id or obj.payment.transaction_id
+        return None
+
+    def get_payment_status(self, obj):
+        if hasattr(obj, "payment"):
+            return obj.payment.status
         return None

@@ -5,9 +5,10 @@ from Hbackend.utils import process_image_fields, delete_old_image_files
 from Hbackend.imagekit_storage import ImageKitStorage   
 from decimal import Decimal
 from django.core.validators import MinValueValidator, MaxValueValidator
+from Hbackend.base_models import SoftDeleteModel
 
 
-class Hostel(models.Model):
+class Hostel(SoftDeleteModel):
     name = models.CharField(max_length=255)
 
     class HostelType(models.TextChoices):
@@ -152,7 +153,7 @@ class Hostel(models.Model):
 
 
 # Hostel images=======================================
-class HostelTypeImage(models.Model):
+class HostelTypeImage(SoftDeleteModel):
     """
     Stores images for each hostel type.
     Managed only via Admin.
@@ -179,7 +180,7 @@ class HostelTypeImage(models.Model):
         return dict(Hostel.HostelType.choices).get(self.hostel_type)
 
 
-class HostelImage(models.Model):
+class HostelImage(SoftDeleteModel):
     hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE, related_name="images")
     image = models.ImageField(upload_to="hostels/")
     image2 = models.ImageField(null=True, blank=True, upload_to="hostels/")

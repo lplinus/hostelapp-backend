@@ -1,9 +1,10 @@
 from django.db import models
 from hostels.models import Hostel
 from django.utils import timezone
+from Hbackend.base_models import SoftDeleteModel
 
 
-class RoomType(models.Model):
+class RoomType(SoftDeleteModel):
     SHARING_CHOICES = [
         (1, "Single Sharing"),
         (2, "Double Sharing"),
@@ -50,7 +51,7 @@ class RoomType(models.Model):
         return f"{self.hostel.name} - {self.get_room_category_display()} - {self.get_sharing_type_display()}"
 
 
-class Bed(models.Model):
+class Bed(SoftDeleteModel):
     room_type = models.ForeignKey(
         RoomType, on_delete=models.CASCADE, related_name="beds"
     )

@@ -1,8 +1,8 @@
 from django.db import models
+from Hbackend.base_models import SoftDeleteModel
 
 
-# Create your models here.
-class Blog(models.Model):
+class Blog(SoftDeleteModel):
     hero_title = models.CharField(max_length=255)
     hero_subtitle = models.TextField()
 
@@ -20,7 +20,7 @@ class Blog(models.Model):
         return "Blog Page"
 
 
-class BlogCategory(models.Model):
+class BlogCategory(SoftDeleteModel):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(unique=True)
 
@@ -31,7 +31,7 @@ class BlogCategory(models.Model):
         return self.name
 
 
-class BlogPost(models.Model):
+class BlogPost(SoftDeleteModel):
     category = models.ForeignKey(
         BlogCategory, on_delete=models.CASCADE, related_name="posts"
     )
@@ -72,7 +72,6 @@ class BlogPost(models.Model):
         from Hbackend.utils import process_image_fields, delete_old_image_files
         fields = ["banner_image", "featured_image", "featured_image2", "featured_image3", "og_image"]
         delete_old_image_files(self, fields)
-        # Convert all image fields to WebP on save
         process_image_fields(self, fields)
         super().save(*args, **kwargs)
 

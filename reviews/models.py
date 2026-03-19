@@ -1,12 +1,10 @@
 from django.db import models
-
-# Create your models here.
-from django.db import models
+from Hbackend.base_models import SoftDeleteModel
 from accounts.models import User
 from hostels.models import Hostel
 
 
-class Review(models.Model):
+class Review(SoftDeleteModel):
     hostel = models.ForeignKey(
         Hostel,
         on_delete=models.CASCADE,

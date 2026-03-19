@@ -71,6 +71,7 @@
 from django.db import models
 from django.utils.text import slugify
 from Hbackend.utils import process_image_fields
+from Hbackend.base_models import SoftDeleteModel
 
 
 def generate_unique_slug(instance, field_name: str, queryset=None):

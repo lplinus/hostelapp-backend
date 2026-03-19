@@ -1,10 +1,11 @@
 from django.conf import settings
 from django.db import models
+from Hbackend.base_models import SoftDeleteModel
 from bookings.models import Booking
 from publicpages.models import PricingPlan
 
 
-class Payment(models.Model):
+class Payment(SoftDeleteModel):
     STATUS_CHOICES = (
         ("pending", "Pending"),
         ("captured", "Captured"),
@@ -37,7 +38,7 @@ class Payment(models.Model):
         return f"{self.provider} - {self.razorpay_order_id or self.transaction_id}"
 
 
-class Subscription(models.Model):
+class Subscription(SoftDeleteModel):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -57,7 +58,3 @@ class Subscription(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.plan.name}"
-
-
-
-#razor pay code 

@@ -1,4 +1,5 @@
-from rest_framework import viewsets, permissions, decorators
+from rest_framework import viewsets, permissions, decorators, filters
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from .models import Booking
@@ -11,18 +12,24 @@ class BookingViewSet(viewsets.ModelViewSet):
     )
     serializer_class = BookingSerializer
     pagination_class = None
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = {
+        "check_in": ["gte", "lte", "exact"],
+        "check_out": ["gte", "lte", "exact"],
+        "created_at": ["gte", "lte", "exact"],
+        "status": ["exact"],
+        "booking_type": ["exact"],
+    }
+    search_fields = ["guest_name", "guest_email", "mobile_number", "hostel__name", "id"]
+    ordering_fields = ["created_at", "check_in", "check_out", "total_price"]
     # def perform_create(self, serializer):
     #     serializer.save(user=self.request.user)
 
     def perform_create(self, serializer):
-        from .services.booking_email_service import BookingEmailService
         if self.request.user.is_authenticated:
-            booking = serializer.save(user=self.request.user)
+            serializer.save(user=self.request.user)
         else:
-            booking = serializer.save()
-        
-        # Trigger confirmation email
-        BookingEmailService.send_booking_confirmation(booking)
+            serializer.save()
 
 
     def perform_update(self, serializer):

@@ -1,10 +1,8 @@
 from django.db import models
-
-# Create your models here.
-from django.db import models
+from Hbackend.base_models import SoftDeleteModel
 
 
-class Amenity(models.Model):
+class Amenity(SoftDeleteModel):
     name = models.CharField(max_length=100)
     icon = models.CharField(max_length=100, blank=True, null=True)
 
