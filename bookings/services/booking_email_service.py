@@ -35,6 +35,7 @@ class BookingEmailService:
                 f"Room: {room_type.get_room_category_display()}\n"
                 f"Check-in: {booking.check_in}\n"
                 f"Check-out: {booking.check_out}\n"
+                f"Payment Method: {booking.get_payment_method_display()}\n"
                 f"Payment ID: {payment_id or 'N/A'}"
             )
 
@@ -51,6 +52,7 @@ class BookingEmailService:
                 "check_in": booking.check_in,
                 "check_out": booking.check_out,
                 "payment_id": payment_id,
+                "payment_method": booking.get_payment_method_display(),
             }
 
             subject = f"Booking Confirmed - {hostel.name}"

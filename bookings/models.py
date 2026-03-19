@@ -58,10 +58,25 @@ class Booking(SoftDeleteModel):
         ("gt_5_months", "More than 5 Months"),
     )
 
+    PAYMENT_METHOD_CHOICES = (
+        ("online", "Online Payment"),
+        ("on_arrival", "Pay at Property"),
+    )
+
+    PAYMENT_STATUS_CHOICES = (
+        ("pending", "Pending"),
+        ("paid", "Paid"),
+        ("partially_paid", "Partially Paid"),
+        ("failed", "Failed"),
+    )
+
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     booking_type = models.CharField(max_length=10, choices=BOOKING_TYPE_CHOICES, default="stay")
     stay_duration = models.CharField(max_length=20, choices=STAY_DURATION_CHOICES, default="none", null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default="online")
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default="pending")
 
     created_at = models.DateTimeField(auto_now_add=True)
 

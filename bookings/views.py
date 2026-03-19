@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, decorators, filters
+from rest_framework import viewsets, permissions, decorators, filters, status
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
@@ -49,7 +49,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         instance.delete()
 
     def get_permissions(self):
-        if self.action in ["create", "send_otp", "verify_otp"]:
+        if self.action in ["create", "send_otp", "verify_otp", "confirm_pay_at_property"]:
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
@@ -58,8 +58,13 @@ class BookingViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             return super().get_queryset()
 
-        from django.db.models import Q
+        if self.action in ["confirm_pay_at_property"]:
+            return super().get_queryset()
 
+        if user.is_anonymous:
+            return super().get_queryset().none()
+
+        from django.db.models import Q
         return super().get_queryset().filter(Q(user=user) | Q(hostel__owner=user))
 
     @decorators.action(
@@ -133,3 +138,30 @@ class BookingViewSet(viewsets.ModelViewSet):
             return Response({"message": "Phone verified successfully"})
         else:
             return Response({"error": "Invalid or expired OTP"}, status=400)
+
+    @decorators.action(
+        detail=True, methods=["post"], permission_classes=[permissions.AllowAny]
+    )
+    def confirm_pay_at_property(self, request, pk=None):
+        booking = self.get_object()
+        
+        if booking.status != "pending":
+            return Response({"error": "Only pending bookings can be confirmed."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        booking.payment_method = "on_arrival"
+        booking.payment_status = "pending"
+        booking.status = "confirmed"
+        booking.save()
+        
+        # Send confirmation email
+        from .services.booking_email_service import BookingEmailService
+        try:
+            BookingEmailService.send_booking_confirmation(booking)
+        except Exception as e:
+            # Log error but don't fail the request
+            print(f"Failed to send email: {e}")
+            
+        return Response({
+            "message": "Booking confirmed with Pay at Property option.",
+            "booking_id": booking.id
+        })

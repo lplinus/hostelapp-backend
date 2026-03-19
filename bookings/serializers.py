@@ -11,7 +11,7 @@ class BookingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = "__all__"
-        read_only_fields = ("user",)
+        read_only_fields = ("user", "payment_status")
 
     def validate_guest_name(self, value):
         if not value or len(value.strip()) < 3:
