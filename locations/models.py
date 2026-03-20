@@ -89,7 +89,7 @@ def generate_unique_slug(instance, field_name: str, queryset=None):
     return slug
 
 
-class Country(models.Model):
+class Country(SoftDeleteModel):
     name = models.CharField(max_length=100)
     iso_code = models.CharField(max_length=10)
     slug = models.SlugField(unique=True, blank=True)
@@ -108,7 +108,7 @@ class Country(models.Model):
         return self.name
 
 
-class State(models.Model):
+class State(SoftDeleteModel):
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True, blank=True)
     country = models.ForeignKey(
@@ -131,7 +131,7 @@ class State(models.Model):
         return self.name
 
 
-class City(models.Model):
+class City(SoftDeleteModel):
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True, blank=True)
     city_image = models.ImageField(upload_to='cities', null=True, blank=True, validators=[validate_image_size])
@@ -166,7 +166,7 @@ class City(models.Model):
         return self.name
 
 
-class Area(models.Model):
+class Area(SoftDeleteModel):
     name = models.CharField(max_length=150)
     slug = models.SlugField(blank=True)
 
