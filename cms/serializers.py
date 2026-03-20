@@ -1,5 +1,12 @@
 from rest_framework import serializers
-from .models import TermsAndConditions, PrivacyPolicy,FAQCategory,FAQ
+from .models import TermsAndConditions, PrivacyPolicy, FAQCategory, FAQ, StorageSettings
+
+
+class StorageSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StorageSettings
+        fields = ["max_image_size_mb"]
+
 
 
 class TermsSerializer(serializers.ModelSerializer):

@@ -7,6 +7,25 @@ import os
 from io import BytesIO
 from PIL import Image
 from django.core.files.base import ContentFile
+from django.core.exceptions import ValidationError
+
+
+def validate_image_size(image_field):
+    """
+    Validate that the uploaded image size is within the limit set in StorageSettings.
+    """
+    try:
+        from cms.models import StorageSettings
+        settings_obj = StorageSettings.objects.get_or_create(pk=1)[0]
+        max_size_mb = settings_obj.max_image_size_mb
+    except Exception:
+        # Fallback to 10MB if something goes wrong
+        max_size_mb = 10
+    
+    if image_field and hasattr(image_field, 'size'):
+        if image_field.size > max_size_mb * 1024 * 1024:
+            raise ValidationError(f"Image file too large. Max size is {max_size_mb} MB.")
+
 
 
 def convert_to_webp(image_field, quality=80):

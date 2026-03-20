@@ -2,8 +2,17 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from cms.serializers import TermsSerializer, PrivacyPolicySerializer,FAQCategorySerializer,FAQSerializer
-from cms.services import TermsService, PrivacyPolicyService,FAQCategoryService,FAQService
+from cms.serializers import TermsSerializer, PrivacyPolicySerializer, FAQCategorySerializer, FAQSerializer, StorageSettingsSerializer
+from cms.services import TermsService, PrivacyPolicyService, FAQCategoryService, FAQService
+from .models import StorageSettings
+
+
+class StorageSettingsView(APIView):
+    def get(self, request):
+        settings_obj, created = StorageSettings.objects.get_or_create(pk=1)
+        serializer = StorageSettingsSerializer(settings_obj)
+        return Response(serializer.data)
+
 
 
 class TermsView(APIView):

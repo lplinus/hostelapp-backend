@@ -1,6 +1,7 @@
 # publicpages/models.py
 
 from django.db import models
+from Hbackend.utils import validate_image_size
 
 
 # Home page model
@@ -111,7 +112,7 @@ class AboutTeamMember(models.Model):
 
     name = models.CharField(max_length=150)
     role = models.CharField(max_length=150)
-    photo = models.ImageField(upload_to="about/team/")
+    photo = models.ImageField(upload_to="about/team/", validators=[validate_image_size])
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -394,7 +395,7 @@ class LandingCityItem(models.Model):
     )
     city_name = models.CharField(max_length=100)
     count_text = models.CharField(max_length=100)
-    image = models.ImageField(upload_to="landing/cities/", null=True, blank=True)
+    image = models.ImageField(upload_to="landing/cities/", null=True, blank=True, validators=[validate_image_size])
     span_large = models.BooleanField(default=False)
     gradient = models.CharField(max_length=255)
     order = models.PositiveIntegerField(default=0)

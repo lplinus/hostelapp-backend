@@ -5,6 +5,7 @@ from datetime import timedelta
 import random
 from django.contrib.auth.models import UserManager as DjangoUserManager
 from Hbackend.base_models import SoftDeleteModel, SoftDeleteManager
+from Hbackend.utils import validate_image_size
 
 
 class UserManager(DjangoUserManager):
@@ -21,7 +22,7 @@ class User(AbstractUser, SoftDeleteModel):
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="guest")
     phone = models.CharField(max_length=20, blank=True, null=True)
-    profile_picture = models.ImageField(upload_to="profiles/", blank=True, null=True)
+    profile_picture = models.ImageField(upload_to="profiles/", blank=True, null=True, validators=[validate_image_size])
 
     # Verification flags
     is_email_verified = models.BooleanField(default=False)

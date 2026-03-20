@@ -120,3 +120,21 @@ class FAQ(models.Model):
 
     def __str__(self):
         return self.question
+
+
+class StorageSettings(models.Model):
+    max_image_size_mb = models.PositiveIntegerField(
+        default=10, 
+        help_text="Global maximum size for image uploads in MB."
+    )
+
+    class Meta:
+        verbose_name = "Storage Settings"
+        verbose_name_plural = "Storage Settings"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Global Storage Settings ({self.max_image_size_mb}MB)"

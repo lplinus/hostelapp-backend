@@ -1,5 +1,6 @@
 from django.db import models
 from Hbackend.base_models import SoftDeleteModel
+from Hbackend.utils import validate_image_size
 
 
 class Blog(SoftDeleteModel):
@@ -43,7 +44,7 @@ class BlogPost(SoftDeleteModel):
     meta_description = models.TextField(blank=True,null=True)
     meta_keywords = models.CharField(max_length=500,blank=True,null=True)
     canonical_url = models.URLField(blank=True,null=True)
-    og_image = models.ImageField(upload_to="seo/hostels/",null=True,blank=True)
+    og_image = models.ImageField(upload_to="seo/hostels/",null=True,blank=True, validators=[validate_image_size])
     og_title = models.CharField(max_length=255,blank=True,null=True)
     og_description = models.TextField(blank=True,null=True)
     og_type = models.CharField(max_length=50,default="website")
@@ -53,10 +54,10 @@ class BlogPost(SoftDeleteModel):
     short_description = models.TextField()
     content = models.TextField()  # Full blog content (HTML or markdown)
 
-    banner_image = models.ImageField(null=True, blank=True, upload_to="blog/")
-    featured_image = models.ImageField(upload_to="blog/")
-    featured_image2 = models.ImageField(null=True, blank=True, upload_to="blog/")
-    featured_image3 = models.ImageField(null=True, blank=True, upload_to="blog/")
+    banner_image = models.ImageField(null=True, blank=True, upload_to="blog/", validators=[validate_image_size])
+    featured_image = models.ImageField(upload_to="blog/", validators=[validate_image_size])
+    featured_image2 = models.ImageField(null=True, blank=True, upload_to="blog/", validators=[validate_image_size])
+    featured_image3 = models.ImageField(null=True, blank=True, upload_to="blog/", validators=[validate_image_size])
     read_time = models.CharField(max_length=50)  # "5 min"
 
     is_published = models.BooleanField(default=True)

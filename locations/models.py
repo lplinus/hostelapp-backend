@@ -70,7 +70,7 @@
 
 from django.db import models
 from django.utils.text import slugify
-from Hbackend.utils import process_image_fields
+from Hbackend.utils import process_image_fields, validate_image_size
 from Hbackend.base_models import SoftDeleteModel
 
 
@@ -134,7 +134,7 @@ class State(models.Model):
 class City(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True, blank=True)
-    city_image = models.ImageField(upload_to='cities', null=True, blank=True)
+    city_image = models.ImageField(upload_to='cities', null=True, blank=True, validators=[validate_image_size])
     state = models.ForeignKey(
         State,
         on_delete=models.CASCADE,

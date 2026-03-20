@@ -78,6 +78,18 @@ class ImageKitStorage(Storage):
     def get_available_name(self, name, max_length=None):
         return name
 
+    def size(self, name):
+        """
+        Return the size of the file in bytes.
+        Since we are using ImageKit, fetching this exactly would require an API call.
+        Returning 0 for now to avoid NotImplementedError in Django Admin.
+        In validate_image_size, it checks the uploaded file size before it's saved.
+        """
+        return 0
+
     def delete(self, name):
-        # We could implement deletion here too if we store fileId
+        """
+        Optional: Delete from ImageKit if we have the fileId.
+        For now, we just pass to avoid errors.
+        """
         pass

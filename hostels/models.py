@@ -1,7 +1,7 @@
 from django.db import models
 from locations.models import City, Area
 from accounts.models import User
-from Hbackend.utils import process_image_fields, delete_old_image_files
+from Hbackend.utils import process_image_fields, delete_old_image_files, validate_image_size
 from Hbackend.imagekit_storage import ImageKitStorage   
 from decimal import Decimal
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -34,7 +34,7 @@ class Hostel(SoftDeleteModel):
     meta_description = models.TextField(blank=True, null=True)
     meta_keywords = models.CharField(max_length=500, blank=True, null=True)
     canonical_url = models.URLField(blank=True, null=True)
-    og_image = models.ImageField(upload_to="seo/hostels/", null=True, blank=True)
+    og_image = models.ImageField(upload_to="seo/hostels/", null=True, blank=True, validators=[validate_image_size])
     og_title = models.CharField(max_length=255, blank=True, null=True)
     og_description = models.TextField(blank=True, null=True)
     og_type = models.CharField(max_length=50, default="website")
@@ -165,7 +165,7 @@ class HostelTypeImage(SoftDeleteModel):
         unique=True,
     )
 
-    image = models.ImageField(upload_to="hostel-type-images/")
+    image = models.ImageField(upload_to="hostel-type-images/", validators=[validate_image_size])
     alt_text = models.CharField(
         max_length=255,
         default="Hostel type image",
@@ -182,16 +182,16 @@ class HostelTypeImage(SoftDeleteModel):
 
 class HostelImage(SoftDeleteModel):
     hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE, related_name="images")
-    image = models.ImageField(upload_to="hostels/")
-    image2 = models.ImageField(null=True, blank=True, upload_to="hostels/")
-    image3 = models.ImageField(null=True, blank=True, upload_to="hostels/")
-    image4 = models.ImageField(null=True, blank=True, upload_to="hostels/")
-    image5 = models.ImageField(null=True, blank=True, upload_to="hostels/")
-    image6 = models.ImageField(null=True, blank=True, upload_to="hostels/")
-    image7 = models.ImageField(null=True, blank=True, upload_to="hostels/")
-    image8 = models.ImageField(null=True, blank=True, upload_to="hostels/")
-    image9 = models.ImageField(null=True, blank=True, upload_to="hostels/")
-    image10 = models.ImageField(null=True, blank=True, upload_to="hostels/")
+    image = models.ImageField(upload_to="hostels/", validators=[validate_image_size])
+    image2 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
+    image3 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
+    image4 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
+    image5 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
+    image6 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
+    image7 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
+    image8 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
+    image9 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
+    image10 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
 
     alt_text = models.CharField(max_length=255)
     is_primary = models.BooleanField(default=False)
@@ -217,61 +217,70 @@ class DefaultHostelImage(models.Model):
     """
 
     image1 = models.ImageField(
-        upload_to="hostels/defaults/", verbose_name="Default Image 1", null=True, blank=True
+        upload_to="hostels/defaults/", verbose_name="Default Image 1", null=True, blank=True, validators=[validate_image_size]
     )
     image2 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 2",
         null=True,
         blank=True,
+        validators=[validate_image_size]
     )
     image3 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 3",
         null=True,
         blank=True,
+        validators=[validate_image_size]
     )
     image4 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 4",
         null=True,
         blank=True,
+        validators=[validate_image_size]
     )
     image5 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 5",
         null=True,
         blank=True,
+        validators=[validate_image_size]
     )
     image6 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 6",
         null=True,
         blank=True,
+        validators=[validate_image_size]
     )
     image7 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 7",
         null=True,
         blank=True,
+        validators=[validate_image_size]
     )
     image8 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 8",
         null=True,
         blank=True,
+        validators=[validate_image_size]
     )
     image9 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 9",
         null=True,
         blank=True,
+        validators=[validate_image_size]
     )
     image10 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 10",
         null=True,
         blank=True,
+        validators=[validate_image_size]
     )
 
     alt_text = models.CharField(
