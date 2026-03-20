@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email - Hostel In</title>
+    <style>
+        body, table, td, a { text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; border-collapse: collapse !important; }
+        body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; background-color: #f4f7fa; font-family: 'Poppins', 'Segoe UI', Arial, sans-serif; }
+        .main-card { border: 1px solid #e2e8f0 !important; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
+        .otp-code { background-color: #fffaf0; border: 2px dashed #f97316; color: #f97316; font-size: 32px; font-weight: 800; letter-spacing: 10px; margin: 20px 0; padding: 15px 30px; border-radius: 12px; display: inline-block; }
+        @media screen and (max-width: 600px) { .container { width: 100% !important; border: none !important; } }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f7fa;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f4f7fa;">
+        <tr>
+            <td align="center" style="padding: 40px 10px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="600" class="container main-card" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; border-collapse: separate !important;">
+                    <!-- Top Gradient Header -->
+                    <tr>
+                        <td align="center" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px 40px;">
+                            <h2 style="color: #ffffff; margin: 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px;">Hostel In</h2>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content Area -->
+                    <tr>
+                        <td align="center" style="padding: 40px 40px 10px 40px;">
+                            <h1 style="color: #1e293b; font-family: Arial, sans-serif; font-size: 26px; font-weight: 700; margin: 0 0 15px 0;">Verify Your Email</h1>
+                            <p style="color: #64748b; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; margin: 0;">Hi {{ user.username }}, welcome to Hostel In! Use the verification code below to complete your registration and find your perfect student home.</p>
+                        </td>
+                    </tr>
+
+                    <!-- OTP Code Area -->
+                    <tr>
+                        <td align="center" style="padding: 10px 40px 30px 40px;">
+                            <div class="otp-code">{{ code }}</div>
+                            <p style="color: #94a3b8; font-family: Arial, sans-serif; font-size: 13px; margin: 10px 0 0 0;">This code will expire in 10 minutes.</p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer / Security Note -->
+                    <tr>
+                        <td style="padding: 0 40px 40px 40px; border-top: 1px solid #f1f5f9;">
+                            <p style="color: #64748b; font-family: Arial, sans-serif; font-size: 14px; margin: 30px 0 10px 0;">If you didn't create an account with Hostel In, please ignore this email.</p>
+                            <p style="color: #94a3b8; font-family: Arial, sans-serif; font-size: 12px; margin: 0;">© 2026 Hostel In. India's Most Trusted Student Hub.</p>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- Bottom Support Link -->
+                <table border="0" cellpadding="0" cellspacing="0" width="600" class="container">
+                    <tr>
+                        <td align="center" style="padding-top: 20px;">
+                            <p style="color: #94a3b8; font-family: Arial, sans-serif; font-size: 12px; margin: 0;">Need help? Contact us at <a href="mailto:support@hostelin.online" style="color: #f97316; text-decoration: none;">support@hostelin.online</a></p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

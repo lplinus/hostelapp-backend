@@ -55,9 +55,18 @@ class AuthService:
 
     @staticmethod
     def send_verification_email(user, code):
-        """Send verification email to user using Brevo SMTP config."""
+        """Send verification email to user using Brevo SMTP and HTML template."""
         subject = "Verify your account - Hostel In"
-        message = f"Your verification code is: {code}. It will expire in 10 minutes."
+        
+        # Context for the email template
+        context = {
+            'user': user,
+            'code': code,
+        }
+        
+        # Render HTML and plain text versions
+        html_message = render_to_string('emails/registration_otp.html', context)
+        plain_message = strip_tags(html_message)
         
         # Use Brevo specific configuration from settings
         brevo_config = getattr(settings, 'BREVO_EMAIL_CONFIG', {})
@@ -74,13 +83,14 @@ class AuthService:
             
             send_mail(
                 subject,
-                message,
+                plain_message,
                 from_email,
                 [user.email],
+                html_message=html_message,
                 fail_silently=False,
                 connection=connection,
             )
-            print(f"DEBUG: Email Verification sent to {user.email}")
+            print(f"DEBUG: HTML Email Verification sent to {user.email}")
         except Exception as e:
             print(f"CRITICAL BREVO ERROR: {e}")
 
