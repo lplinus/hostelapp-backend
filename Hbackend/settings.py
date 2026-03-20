@@ -296,7 +296,9 @@ CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=False, cast=bool)
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
 
 
-# Email Host
+# ======================
+# Gmail (Booking Emails)
+# ======================
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
@@ -313,12 +315,32 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = f"Hostel In <{EMAIL_HOST_USER}>"
 
 
+
+# BREVO_FROM_EMAIL = "Hostelin <noreply@hostelin.online>"
+
+# ======================
+# Brevo (OTP Emails)
+# ======================
+BREVO_FROM_EMAIL = "Hostelin <lakklplbros@gmail.com>"
+
+# brevo email config
+BREVO_EMAIL_CONFIG = {
+    "EMAIL_HOST": "smtp-relay.brevo.com",
+    "EMAIL_PORT": 587,
+    "EMAIL_USE_TLS": True,
+    "EMAIL_HOST_USER": config("BREVO_SMTP_USER"),
+    "EMAIL_HOST_PASSWORD": config("BREVO_SMTP_PASSWORD")
+}
+
+
+
+
 # payment  ikeys
-
-
 RAZORPAY_KEY_ID = config("RAZORPAY_KEY_ID")
 RAZORPAY_KEY_SECRET = config("RAZORPAY_KEY_SECRET")
 RAZORPAY_WEBHOOK_SECRET = config("RAZORPAY_WEBHOOK_SECRET", default="")
+
+
 
 # ImageKit Settings
 IMAGEKIT_PUBLIC_KEY = config("IMAGEKIT_PUBLIC_KEY")

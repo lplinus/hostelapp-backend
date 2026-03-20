@@ -1,7 +1,7 @@
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.models import VerificationCode
-from django.core.mail import send_mail
+from django.core.mail import send_mail, get_connection
 from django.utils.html import strip_tags
 from django.template.loader import render_to_string
 from rest_framework_simplejwt.token_blacklist.models import (
@@ -39,15 +39,13 @@ class AuthService:
             last_name=validated_data.get("last_name", ""),
             phone=validated_data.get("phone", ""),
             role=validated_data.get("role", "guest"),
-        # user.is_active = False # Commented out email activation requirement
         )
-        user.is_active = False # Still False, phone verification will activate it
+        user.is_active = False 
         user.save()
 
-        # --- EMAIL VERIFICATION (COMMENTED OUT) ---
-        # Generate verification code for email
-        # v_code = VerificationCode.generate_code(user, "email")
-        # AuthService.send_verification_email(user, v_code.code)
+        # --- EMAIL VERIFICATION (ENABLED) ---
+        v_code = VerificationCode.generate_code(user, "email")
+        AuthService.send_verification_email(user, v_code.code)
 
         # --- PHONE VERIFICATION (NEW PRIMARY) ---
         if user.phone:
@@ -57,25 +55,34 @@ class AuthService:
 
     @staticmethod
     def send_verification_email(user, code):
-        """Send verification email to user (DISABLED)."""
-       
-        # subject = "Verify your account"
-        # message = f"Your verification code is: {code}. It will expire in 10 minutes."
-
-        # For development debugging
-        print(f"DEBUG: Email Verification for {user.email} is {code} (EMAIL DISABLED)")
-
-        # In production, use real SMTP settings
-        # try:
-        #     send_mail(
-        #         subject,
-        #         message,
-        #         settings.DEFAULT_FROM_EMAIL,
-        #         [user.email],
-        #         fail_silently=False,
-        #     )
-        # except Exception as e:
-        #     print(f"Failed to send email: {e}")
+        """Send verification email to user using Brevo SMTP config."""
+        subject = "Verify your account - Hostel In"
+        message = f"Your verification code is: {code}. It will expire in 10 minutes."
+        
+        # Use Brevo specific configuration from settings
+        brevo_config = getattr(settings, 'BREVO_EMAIL_CONFIG', {})
+        from_email = getattr(settings, 'BREVO_FROM_EMAIL', settings.DEFAULT_FROM_EMAIL)
+        
+        try:
+            connection = get_connection(
+                host=brevo_config.get('EMAIL_HOST'),
+                port=brevo_config.get('EMAIL_PORT'),
+                username=brevo_config.get('EMAIL_HOST_USER'),
+                password=brevo_config.get('EMAIL_HOST_PASSWORD'),
+                use_tls=brevo_config.get('EMAIL_USE_TLS', True),
+            )
+            
+            send_mail(
+                subject,
+                message,
+                from_email,
+                [user.email],
+                fail_silently=False,
+                connection=connection,
+            )
+            print(f"DEBUG: Email Verification sent to {user.email}")
+        except Exception as e:
+            print(f"CRITICAL BREVO ERROR: {e}")
 
     @staticmethod
     def send_phone_otp(user, phone=None):
@@ -180,11 +187,10 @@ class AuthService:
         v_code.is_used = True
         v_code.save()
 
-        # if type == "email":
-        #     user.is_email_verified = True
-        #     user.is_active = True
-        # elif type == "phone":
-        if type == "phone":
+        if type == "email":
+            user.is_email_verified = True
+            user.is_active = True
+        elif type == "phone":
             user.is_phone_verified = True
             user.is_active = True # Activate user on phone verification
             if phone:
