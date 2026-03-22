@@ -7,10 +7,12 @@ class ReviewSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Review
-        fields = "__all__"
-        read_only_fields = ("user",)
+        fields = ["id", "hostel", "user", "name", "rating", "hostel_rating", "food_rating", "room_rating", "comment", "user_name", "created_at"]
+        read_only_fields = ("user", "rating")
 
     def get_user_name(self, obj):
+        if obj.name:
+            return obj.name
         if obj.user:
             first = obj.user.first_name or ""
             last = obj.user.last_name or ""

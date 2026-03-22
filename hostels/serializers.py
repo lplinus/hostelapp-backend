@@ -1,6 +1,14 @@
 from rest_framework import serializers
-from .models import Hostel, HostelImage, DefaultHostelImage, HostelTypeImage
+from .models import Hostel, HostelImage, DefaultHostelImage, HostelTypeImage, Landmark
 from amenities.serializers import AmenitySerializer
+
+
+class LandmarkSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Landmark
+        fields = ["id", "name", "distance", "is_popular"]
+
+
 from amenities.models import Amenity
 from locations.serializers import CitySerializer, AreaSerializer
 from reviews.serializers import ReviewSerializer
@@ -94,60 +102,17 @@ class HostelTypeImageSerializer(serializers.ModelSerializer):
         return choices.get(obj.hostel_type, obj.hostel_type)
 
 
-# class HostelSerializer(serializers.ModelSerializer):
-#     images = HostelImageSerializer(many=True, read_only=True)
-#     amenities = AmenitySerializer(many=True, read_only=True)
-#     city = CitySerializer(read_only=True)
-#     area = AreaSerializer(read_only=True)
-#     room_types = RoomTypeSerializer(many=True, read_only=True)
-#     reviews = ReviewSerializer(many=True, read_only=True)
-#     default_images = serializers.SerializerMethodField()
-
-#     class Meta:
-#         model = Hostel
-#         fields = [
-#             "id",
-#             "name",
-#             "hostel_type",
-#             "room_types",
-#             "slug",
-#             "owner",
-#             "city",
-#             "area",
-#             "description",
-#             "short_description",
-#             "price",
-#             "address",
-#             "postal_code",
-#             "latitude",
-#             "longitude",
-#             "check_in_time",
-#             "check_out_time",
-#             "rating_avg",
-#             "rating_count",
-#             "is_active",
-#             "is_featured",
-#             "is_verified",
-#             "is_toprated",
-#             "is_approved",
-#             "amenities",
-#             "images",
-#             "default_images",
-#             "reviews",
-#             "created_at",
-#         ]
-
-
 class HostelSerializer(serializers.ModelSerializer):
     images = HostelImageSerializer(many=True, read_only=True)
     amenities = AmenitySerializer(many=True, read_only=True)
     city = CitySerializer(read_only=True)
     area = AreaSerializer(read_only=True)
     room_types = RoomTypeSerializer(many=True, read_only=True)
-    reviews = ReviewSerializer(many=True, read_only=True)
+    reviews = serializers.SerializerMethodField()
+    landmarks = LandmarkSerializer(many=True, read_only=True)
     default_images = serializers.SerializerMethodField()
     final_price = serializers.SerializerMethodField()
-
+ 
     class Meta:
         model = Hostel
         fields = [
@@ -186,6 +151,9 @@ class HostelSerializer(serializers.ModelSerializer):
             "check_in_time",
             "check_out_time",
             "rating_avg",
+            "hostel_rating_avg",
+            "food_rating_avg",
+            "room_rating_avg",
             "rating_count",
             "is_active",
             "is_featured",
@@ -196,8 +164,16 @@ class HostelSerializer(serializers.ModelSerializer):
             "images",
             "default_images",
             "reviews",
+            "landmarks",
             "created_at",
         ]
+ 
+    def get_reviews(self, obj):
+        # Only return approved reviews
+        reviews = obj.reviews.filter(
+            is_approved=True
+        ).select_related("user").order_by("-created_at")
+        return ReviewSerializer(reviews, many=True, context=self.context).data
 
     def get_final_price(self, obj):
         return obj.final_price
@@ -270,30 +246,6 @@ class HostelWriteSerializer(serializers.ModelSerializer):
         return value
 
 
-# class CityHostelListSerializer(serializers.ModelSerializer):
-#     area_name = serializers.CharField(source="area.name", read_only=True)
-#     city_name = serializers.CharField(source="city.name", read_only=True)
-#     thumbnail = serializers.SerializerMethodField()
-
-#     base_price = serializers.DecimalField(
-#         source="price", max_digits=10, decimal_places=2, read_only=True
-#     )
-#     rating = serializers.FloatField(source="rating_avg", read_only=True)
-
-#     class Meta:
-#         model = Hostel
-#         fields = [
-#             "id",
-#             "name",
-#             "slug",
-#             "hostel_type",
-#             "base_price",
-#             "rating",
-#             "thumbnail",
-#             "area_name",
-#             "city_name",
-#             "is_verified",
-#         ]
 
 
 class CityHostelListSerializer(serializers.ModelSerializer):

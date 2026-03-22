@@ -71,6 +71,9 @@ class Hostel(SoftDeleteModel):
     check_out_time = models.TimeField()
 
     rating_avg = models.FloatField(default=0)
+    food_rating_avg = models.FloatField(default=0)
+    room_rating_avg = models.FloatField(default=0)
+    hostel_rating_avg = models.FloatField(default=0)
     rating_count = models.IntegerField(default=0)
 
     is_active = models.BooleanField(default=True)
@@ -310,3 +313,13 @@ class DefaultHostelImage(models.Model):
 
     def __str__(self):
         return "Default Hostel Images"
+
+
+class Landmark(SoftDeleteModel):
+    hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE, related_name="landmarks")
+    name = models.CharField(max_length=255)
+    distance = models.CharField(max_length=100, help_text="e.g., 500m or 1.2km")
+    is_popular = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.name} ({self.distance}) - {self.hostel.name}"

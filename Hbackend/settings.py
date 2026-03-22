@@ -51,7 +51,6 @@ ALLOWED_HOSTS = [
 ]
 
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -135,8 +134,6 @@ DATABASES = {
 }
 
 
-
-
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 
@@ -214,7 +211,7 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
-    #login and other troller rated
+    # login and other troller rated
     # "DEFAULT_THROTTLE_RATES": {
     #     "anon": "1000/minute",
     #     "user": "1000/minute",
@@ -222,10 +219,10 @@ REST_FRAMEWORK = {
     #     "register": "100/minute",
     # },
     "DEFAULT_THROTTLE_RATES": {
-    "anon": "10000/day",
-    "user": "10000/day",
-    "login": "10000/minute",
-    "register": "10000/minute",
+        "anon": "10000/day",
+        "user": "10000/day",
+        "login": "10000/minute",
+        "register": "10000/minute",
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
@@ -246,7 +243,7 @@ SIMPLE_JWT = {
     "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
 }
 
-APPEND_SLASH = True
+
 
 
 # ========================
@@ -272,6 +269,10 @@ CSRF_TRUSTED_ORIGINS = [
     "https://hostelin.online",
     "https://www.hostelin.online",
 ]
+
+
+# append slash
+APPEND_SLASH = True
 
 # ========================
 # DEFAULT FIELD TYPE
@@ -319,7 +320,6 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = f"Hostel In <{EMAIL_HOST_USER}>"
 
 
-
 # BREVO_FROM_EMAIL = "Hostelin <noreply@hostelin.online>"
 
 # ======================
@@ -333,10 +333,8 @@ BREVO_EMAIL_CONFIG = {
     "EMAIL_PORT": 587,
     "EMAIL_USE_TLS": True,
     "EMAIL_HOST_USER": config("BREVO_SMTP_USER"),
-    "EMAIL_HOST_PASSWORD": config("BREVO_SMTP_PASSWORD")
+    "EMAIL_HOST_PASSWORD": config("BREVO_SMTP_PASSWORD"),
 }
-
-
 
 
 # payment  ikeys
@@ -345,8 +343,15 @@ RAZORPAY_KEY_SECRET = config("RAZORPAY_KEY_SECRET")
 RAZORPAY_WEBHOOK_SECRET = config("RAZORPAY_WEBHOOK_SECRET", default="")
 
 
-
 # ImageKit Settings
 IMAGEKIT_PUBLIC_KEY = config("IMAGEKIT_PUBLIC_KEY")
 IMAGEKIT_PRIVATE_KEY = config("IMAGEKIT_PRIVATE_KEY")
 IMAGEKIT_URL_ENDPOINT = config("IMAGEKIT_URL_ENDPOINT")
+
+# ========================
+# REVIEW SETTINGS
+# ========================
+# Set to True to make reviews visible immediately, or False to require Admin approval
+REVIEWS_AUTO_APPROVE = config("REVIEWS_AUTO_APPROVE", default=False, cast=bool)
+# Timer for review publication delay (in seconds).
+REVIEWS_PUBLISH_DELAY = config("REVIEWS_PUBLISH_DELAY", default=0, cast=int)

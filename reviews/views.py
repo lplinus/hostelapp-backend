@@ -16,14 +16,50 @@ class IsReviewOwnerOrReadOnly(permissions.BasePermission):
         return obj.user == request.user
 
 
+from django.conf import settings
+from django.utils import timezone
+from datetime import timedelta
+
+
+from rest_framework.authentication import SessionAuthentication
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
 class ReviewViewSet(viewsets.ModelViewSet):
-    queryset = Review.objects.select_related("hostel", "user").all()
     serializer_class = ReviewSerializer
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsReviewOwnerOrReadOnly]
     pagination_class = None
+    filterset_fields = ["hostel"]
+
+    def get_queryset(self):
+        queryset = Review.objects.select_related("hostel", "user")
+        if not self.request.user.is_staff:
+            return queryset.filter(is_approved=True).order_by("-created_at")
+        return queryset.all().order_by("-created_at")
+
+    def get_permissions(self):
+        if self.action == "create":
+            return [permissions.AllowAny()]
+        return [p() for p in self.permission_classes]
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        is_approved = getattr(settings, "REVIEWS_AUTO_APPROVE", False)
+        publish_delay = getattr(settings, "REVIEWS_PUBLISH_DELAY", 0)
+        published_at = timezone.now() + timedelta(seconds=publish_delay)
+        
+        user = self.request.user if self.request.user.is_authenticated else None
+        
+        # Auto-populate name if empty and user is logged in
+        name = serializer.validated_data.get('name')
+        if not name and user:
+            name = f"{user.first_name} {user.last_name}".strip() or user.username
+
+        serializer.save(
+            user=user,
+            name=name,
+            is_approved=is_approved,
+            published_at=published_at
+        )
 
     def perform_update(self, serializer):
         obj = serializer.instance
