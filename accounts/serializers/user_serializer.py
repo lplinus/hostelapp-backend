@@ -46,3 +46,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
         if value and value.size > 15 * 1024 * 1024:
             raise serializers.ValidationError("Profile picture must be under 15MB.")
         return value
+
+    def update(self, instance, validated_data):
+        # Reset phone verification if the phone number is changed via profile edit
+        new_phone = validated_data.get("phone")
+        if new_phone is not None and new_phone != instance.phone:
+            instance.is_phone_verified = False
+        return super().update(instance, validated_data)
