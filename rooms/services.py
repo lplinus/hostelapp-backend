@@ -2,7 +2,6 @@
 Services for the Rooms application.
 This module contains business logic for rooms, such as grouping rooms by hostel and category.
 """
-from django.db.models import Prefetch
 from .models import RoomType
 
 
@@ -40,6 +39,16 @@ class GroupedRoomsService:
             if cat_display not in grouped_data[hostel_id]["categories"]:
                 grouped_data[hostel_id]["categories"][cat_display] = []
 
+            # --- Consolidated Mode: Read from single Bed row fields ---
+            bed = room.beds.first()
+            total_beds = (bed.total_beds or 0) if bed else 0
+            available_beds = (bed.beds_available or 0) if bed else 0
+
+            # Fallback for legacy data (individual bed rows without total_beds field)
+            if bed and total_beds == 0:
+                total_beds = room.beds.count()
+                available_beds = room.beds.filter(is_available=True).count()
+
             grouped_data[hostel_id]["categories"][cat_display].append(
                 {
                     "id": room.id,
@@ -48,8 +57,8 @@ class GroupedRoomsService:
                     "sharing_type": room.sharing_type,
                     "price": room.base_price,
                     "price_per_day": room.price_per_day,
-                    "total_beds": room.beds.count(),
-                    "available_beds": room.beds.filter(is_available=True).count(),
+                    "total_beds": total_beds,
+                    "available_beds": available_beds,
                     "is_available": room.is_available,
                 }
             )

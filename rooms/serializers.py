@@ -1,6 +1,5 @@
 
 
-
 from rest_framework import serializers
 from .models import RoomType, Bed
 
@@ -56,32 +55,36 @@ class RoomTypeSerializer(serializers.ModelSerializer):
         ]
 
     def get_total_beds(self, obj):
-        # Prefer the total_beds field if any bed object has it filled (e.g. bulk inventory mode)
-        # Otherwise count the individual bed objects
-        beds = obj.beds.all()
-        if not beds.exists():
+        """
+        Reads total_beds from the single consolidated Bed row.
+        Falls back to counting individual rows for backward compatibility.
+        """
+        bed = obj.beds.first()
+        if not bed:
             return 0
 
-        # If the first bed has a numeric count, we assume it's in bulk mode
-        # We sum them up in case there are multiple bulk entries
-        total = sum((b.total_beds or 0) for b in beds)
-        if total > 0:
-            return total
-        return beds.count()
+        # Consolidated mode: read from the total_beds field
+        if bed.total_beds and bed.total_beds > 0:
+            return bed.total_beds
+
+        # Fallback: count individual bed rows (legacy data)
+        return obj.beds.count()
 
     def get_available_beds(self, obj):
-        # Prefer the beds_available field if any bed object has it filled
-        # Otherwise count individual available items
-        beds = obj.beds.all()
-        if not beds.exists():
+        """
+        Reads beds_available from the single consolidated Bed row.
+        Falls back to counting individual available rows for backward compatibility.
+        """
+        bed = obj.beds.first()
+        if not bed:
             return 0
 
-        available = sum((b.beds_available or 0) for b in beds if b.is_available)
-        if available > 0:
-            return available
+        # Consolidated mode: read from the beds_available field
+        if bed.beds_available is not None and bed.beds_available >= 0:
+            return bed.beds_available
 
-        # Fallback to counting individual available bed objects
-        return beds.filter(is_available=True).count()
+        # Fallback: count individual available bed rows (legacy data)
+        return obj.beds.filter(is_available=True).count()
 
     def create(self, validated_data):
         total_beds_to_create = self.initial_data.get("total_beds")
@@ -90,10 +93,27 @@ class RoomTypeSerializer(serializers.ModelSerializer):
         if total_beds_to_create:
             try:
                 count = int(total_beds_to_create)
-                for i in range(count):
-                    Bed.objects.create(
-                        room_type=room_type, bed_number=f"B-{i + 1}", is_available=True
-                    )
+                # --- Consolidated Mode: Single row with all bed numbers ---
+                bed_numbers = ",".join([f"B-{i + 1}" for i in range(count)])
+                Bed.objects.create(
+                    room_type=room_type,
+                    bed_number=bed_numbers,
+                    total_beds=count,
+                    beds_available=count,
+                    is_available=True,
+                )
+
+                # --- Individual Bed Mode (for future bed assignment) ---
+                # Uncomment the block below and comment out the block above
+                # to create individual bed rows for per-bed tracking.
+                #
+                # for i in range(count):
+                #     Bed.objects.create(
+                #         room_type=room_type,
+                #         bed_number=f"B-{i + 1}",
+                #         is_available=True,
+                #     )
+
             except ValueError:
                 pass
 
@@ -106,24 +126,59 @@ class RoomTypeSerializer(serializers.ModelSerializer):
         if total_beds_requested is not None:
             try:
                 new_total = int(total_beds_requested)
-                current_total = instance.beds.count()
 
-                if new_total > current_total:
-                    # Add beds
-                    for i in range(current_total, new_total):
-                        Bed.objects.create(
-                            room_type=instance,
-                            bed_number=f"B-{i + 1}",
-                            is_available=True,
-                        )
-                elif new_total < current_total:
-                    # Remove beds - only remove available beds starting from the last ones
-                    diff = current_total - new_total
-                    beds_to_remove = instance.beds.filter(is_available=True).order_by(
-                        "-id"
-                    )[:diff]
-                    for bed in beds_to_remove:
-                        bed.delete()
+                # --- Consolidated Mode: Update the single Bed row ---
+                bed = instance.beds.first()
+
+                if bed:
+                    # Recalculate: keep the occupied count, adjust available
+                    occupied = (bed.total_beds or 0) - (bed.beds_available or 0)
+                    new_available = max(0, new_total - occupied)
+
+                    # Regenerate bed numbers
+                    bed_numbers = ",".join([f"B-{i + 1}" for i in range(new_total)])
+
+                    bed.total_beds = new_total
+                    bed.beds_available = new_available
+                    bed.bed_number = bed_numbers
+                    bed.is_available = new_available > 0
+                    bed.save()
+
+                    # Delete any extra legacy rows if they exist
+                    extra_beds = instance.beds.exclude(pk=bed.pk)
+                    if extra_beds.exists():
+                        extra_beds.delete()
+                else:
+                    # No bed row exists yet, create one
+                    bed_numbers = ",".join([f"B-{i + 1}" for i in range(new_total)])
+                    Bed.objects.create(
+                        room_type=instance,
+                        bed_number=bed_numbers,
+                        total_beds=new_total,
+                        beds_available=new_total,
+                        is_available=True,
+                    )
+
+                # --- Individual Bed Mode (for future bed assignment) ---
+                # Uncomment the block below and comment out the block above
+                # to manage individual bed rows for per-bed tracking.
+                #
+                # current_total = instance.beds.count()
+                # if new_total > current_total:
+                #     for i in range(current_total, new_total):
+                #         Bed.objects.create(
+                #             room_type=instance,
+                #             bed_number=f"B-{i + 1}",
+                #             is_available=True,
+                #         )
+                # elif new_total < current_total:
+                #     diff = current_total - new_total
+                #     beds_to_remove = instance.beds.filter(is_available=True).order_by(
+                #         "-id"
+                #     )[:diff]
+                #     for bed_obj in beds_to_remove:
+                #         bed_obj.delete()
+
             except ValueError:
                 pass
 
