@@ -1,3 +1,8 @@
+"""
+Views for the Reviews application.
+Allows users to post reviews for hostels. 
+Includes logic for moderation (auto-approval settings) and ownership verification.
+"""
 from rest_framework import viewsets, permissions
 from rest_framework.exceptions import PermissionDenied
 from .models import Review
@@ -5,6 +10,10 @@ from .serializers import ReviewSerializer
 
 
 class IsReviewOwnerOrReadOnly(permissions.BasePermission):
+    """
+    Custom permission to ensure only the review author can edit/delete it.
+    Read-only for everyone, write for authenticated users.
+    """
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return True
@@ -25,6 +34,11 @@ from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 class ReviewViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Review model.
+    Handles submission of new reviews, including auto-population of names 
+    and handling of approval delays based on project settings.
+    """
     serializer_class = ReviewSerializer
     authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsReviewOwnerOrReadOnly]

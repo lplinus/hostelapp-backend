@@ -57,7 +57,7 @@ class Bed(SoftDeleteModel):
     )
     total_beds = models.IntegerField(null=True, blank=True)
     beds_available = models.IntegerField(null=True, blank=True)
-    bed_number = models.CharField(max_length=50)
+    bed_number = models.TextField(null=True, blank=True, help_text="Comma-separated bed numbers, e.g., B1, B2, B3")
     is_available = models.BooleanField(default=True)
 
     def __str__(self):

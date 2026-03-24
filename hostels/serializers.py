@@ -86,7 +86,20 @@ class HostelImageSerializer(serializers.ModelSerializer):
 class DefaultHostelImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = DefaultHostelImage
-        fields = ["id", "image1", "image2", "image3", "image4", "image5", "image6", "image7", "image8", "image9", "image10","alt_text"]
+        fields = [
+            "id",
+            "image1",
+            "image2",
+            "image3",
+            "image4",
+            "image5",
+            "image6",
+            "image7",
+            "image8",
+            "image9",
+            "image10",
+            "alt_text",
+        ]
 
 
 class HostelTypeImageSerializer(serializers.ModelSerializer):
@@ -112,7 +125,8 @@ class HostelSerializer(serializers.ModelSerializer):
     landmarks = LandmarkSerializer(many=True, read_only=True)
     default_images = serializers.SerializerMethodField()
     final_price = serializers.SerializerMethodField()
- 
+    rating_count = serializers.SerializerMethodField()
+
     class Meta:
         model = Hostel
         fields = [
@@ -167,12 +181,17 @@ class HostelSerializer(serializers.ModelSerializer):
             "landmarks",
             "created_at",
         ]
- 
+
+    def get_rating_count(self, obj):
+        return obj.reviews.filter(is_approved=True).count()
+
     def get_reviews(self, obj):
         # Only return approved reviews
-        reviews = obj.reviews.filter(
-            is_approved=True
-        ).select_related("user").order_by("-created_at")
+        reviews = (
+            obj.reviews.filter(is_approved=True)
+            .select_related("user")
+            .order_by("-created_at")
+        )
         return ReviewSerializer(reviews, many=True, context=self.context).data
 
     def get_final_price(self, obj):
@@ -246,14 +265,13 @@ class HostelWriteSerializer(serializers.ModelSerializer):
         return value
 
 
-
-
 class CityHostelListSerializer(serializers.ModelSerializer):
     area_name = serializers.CharField(source="area.name", read_only=True)
     city_name = serializers.CharField(source="city.name", read_only=True)
     thumbnail = serializers.SerializerMethodField()
     final_price = serializers.SerializerMethodField()
     rating = serializers.FloatField(source="rating_avg", read_only=True)
+    rating_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Hostel
@@ -269,12 +287,16 @@ class CityHostelListSerializer(serializers.ModelSerializer):
             "final_price",
             "final_price_per_day",
             "rating",
+            "rating_count",
             "thumbnail",
             "area_name",
             "city_name",
             "is_verified",
             "is_approved",
         ]
+
+    def get_rating_count(self, obj):
+        return obj.reviews.filter(is_approved=True).count()
 
     def get_final_price(self, obj):
         return obj.final_price
@@ -287,9 +309,13 @@ class CityHostelListSerializer(serializers.ModelSerializer):
             for i in range(1, 11):
                 field_name = "image" if i == 1 else f"image{i}"
                 img_field = getattr(image_obj, field_name, None)
-                if img_field and hasattr(img_field, 'url'):
+                if img_field and hasattr(img_field, "url"):
                     request = self.context.get("request")
-                    return request.build_absolute_uri(img_field.url) if request else img_field.url
+                    return (
+                        request.build_absolute_uri(img_field.url)
+                        if request
+                        else img_field.url
+                    )
 
         # 2. Fallback to singleton DefaultHostelImage (all 10 fields)
         try:
@@ -297,9 +323,13 @@ class CityHostelListSerializer(serializers.ModelSerializer):
             for i in range(1, 11):
                 field_name = f"image{i}"
                 img_field = getattr(defaults, field_name, None)
-                if img_field and hasattr(img_field, 'url'):
+                if img_field and hasattr(img_field, "url"):
                     request = self.context.get("request")
-                    return request.build_absolute_uri(img_field.url) if request else img_field.url
+                    return (
+                        request.build_absolute_uri(img_field.url)
+                        if request
+                        else img_field.url
+                    )
         except DefaultHostelImage.DoesNotExist:
             pass
         return None

@@ -1,3 +1,8 @@
+"""
+Views for the Payments application.
+Handles Razorpay order creation, payment verification, and webhooks.
+Includes subscription management for premium features.
+"""
 import logging
 import uuid
 
@@ -20,6 +25,10 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════════════════
 
 class PaymentViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for individual booking payments.
+    Supports creating Razorpay orders and verifying payment signatures.
+    """
     queryset = Payment.objects.select_related("booking").all()
     serializer_class = PaymentSerializer
     pagination_class = None
@@ -62,6 +71,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
     # ─── Create Razorpay Order (Public — guest checkout) ─────────────────
     @action(detail=False, methods=["post"])
     def create_razorpay_order(self, request):
+        """
+        Creates a new Razorpay order for a specific booking.
+        Returns order details including order ID and amount in paise.
+        """
         booking_id = request.data.get("booking_id")
         if not booking_id:
             return Response(
@@ -81,6 +94,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
     # ─── Verify Razorpay Payment (Public — frontend callback) ───────────
     @action(detail=False, methods=["post"])
     def verify_razorpay_payment(self, request):
+        """
+        Verifies the Razorpay payment signature after a successful frontend payment.
+        Updates the booking and payment status accordingly.
+        """
         order_id = request.data.get("order_id")
         payment_id = request.data.get("payment_id")
         signature = request.data.get("signature")
@@ -134,6 +151,10 @@ def razorpay_webhook(request):
 # ═══════════════════════════════════════════════════════════════════════════
 
 class SubscriptionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for user subscriptions.
+    Allows users to subscribe to plans for premium hostel listing benefits.
+    """
     queryset = Subscription.objects.all()
     serializer_class = SubscriptionSerializer
     permission_classes = [permissions.IsAuthenticated]

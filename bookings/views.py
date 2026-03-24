@@ -1,3 +1,8 @@
+"""
+Views for the Bookings application.
+This module handles the creation, retrieval, and management of hostel bookings.
+Includes support for guest bookings, OTP verification, and owner/staff dashboards.
+"""
 from rest_framework import viewsets, permissions, decorators, filters, status
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
@@ -7,6 +12,11 @@ from .serializers import BookingSerializer
 
 
 class BookingViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for Booking model.
+    Provides standard CRUD operations and custom actions for booking management.
+    Supports filtering, searching, and ordering of booking records.
+    """
     queryset = Booking.objects.select_related("user", "hostel", "room_type").order_by(
         "-created_at"
     )
@@ -71,6 +81,9 @@ class BookingViewSet(viewsets.ModelViewSet):
         detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated]
     )
     def owner(self, request):
+        """
+        Custom action to retrieve all bookings for hostels owned by the authenticated user.
+        """
         bookings = (
             Booking.objects.filter(hostel__owner=request.user)
             .select_related("user", "hostel", "room_type")
@@ -83,6 +96,10 @@ class BookingViewSet(viewsets.ModelViewSet):
         detail=False, methods=["post"], permission_classes=[permissions.IsAuthenticated]
     )
     def checkin(self, request):
+        """
+        Marks a booking as 'completed' (checked-in).
+        Verification: Booking must be 'confirmed' and the user must be the hostel owner or staff.
+        """
         booking_id = request.data.get("booking_id")
         if not booking_id:
             return Response({"error": "booking_id is required"}, status=400)
@@ -113,6 +130,10 @@ class BookingViewSet(viewsets.ModelViewSet):
         detail=False, methods=["post"], permission_classes=[permissions.AllowAny]
     )
     def send_otp(self, request):
+        """
+        Sends an OTP to the provided phone number for booking verification.
+        Useful for anonymous/guest booking flows.
+        """
         phone = request.data.get("phone")
         if not phone:
             return Response({"error": "phone is required"}, status=400)
@@ -128,6 +149,9 @@ class BookingViewSet(viewsets.ModelViewSet):
         detail=False, methods=["post"], permission_classes=[permissions.AllowAny]
     )
     def verify_otp(self, request):
+        """
+        Verifies the OTP sent to the user's phone.
+        """
         phone = request.data.get("phone")
         code = request.data.get("code")
         if not phone or not code:
@@ -143,6 +167,10 @@ class BookingViewSet(viewsets.ModelViewSet):
         detail=True, methods=["post"], permission_classes=[permissions.AllowAny]
     )
     def confirm_pay_at_property(self, request, pk=None):
+        """
+        Confirms a pending booking with the 'pay at property' option.
+        Updates status to 'confirmed' and sends a confirmation email.
+        """
         booking = self.get_object()
         
         if booking.status != "pending":

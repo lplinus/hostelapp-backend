@@ -31,8 +31,9 @@ class Review(SoftDeleteModel):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        # Overall rating is average of hostel, food, and room ratings
-        self.rating = round((self.hostel_rating + self.food_rating + self.room_rating) / 3.0, 1)
+        # Overall rating is now calculated ONLY based on food and room ratings
+        # self.rating = round((self.hostel_rating + self.food_rating + self.room_rating) / 3.0, 1) # Commented out
+        self.rating = round((self.food_rating + self.room_rating) / 2.0, 1)
         super().save(*args, **kwargs)
         self.update_hostel_rating()
 

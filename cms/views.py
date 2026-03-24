@@ -1,3 +1,8 @@
+"""
+Views for the CMS (Content Management System) application.
+Provides endpoints for retrieving legal documents (Terms, Privacy Policy),
+FAQs, and general storage settings.
+"""
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -8,6 +13,9 @@ from .models import StorageSettings
 
 
 class StorageSettingsView(APIView):
+    """
+    Retrieves global storage settings (e.g., base URLs for media/static files).
+    """
     def get(self, request):
         settings_obj, created = StorageSettings.objects.get_or_create(pk=1)
         serializer = StorageSettingsSerializer(settings_obj)
@@ -16,6 +24,9 @@ class StorageSettingsView(APIView):
 
 
 class TermsView(APIView):
+    """
+    Retrieves the latest Terms and Conditions content.
+    """
 
     def get(self, request):
         terms = TermsService.get_terms()
@@ -32,6 +43,9 @@ class TermsView(APIView):
 
 
 class PrivacyPolicyView(APIView):
+    """
+    Retrieves the latest Privacy Policy content.
+    """
 
     def get(self, request):
         privacy_policy = PrivacyPolicyService.get_privacy_policy()
@@ -46,6 +60,9 @@ class PrivacyPolicyView(APIView):
         return Response(serializer.data)
 
 class FAQCategoryListView(APIView):
+    """
+    Lists all available FAQ categories (used for grouping FAQs).
+    """
 
     def get(self, request):
         categories = FAQCategoryService.get_faq_categories()
@@ -53,6 +70,10 @@ class FAQCategoryListView(APIView):
         return Response(serializer.data)
 
 class FAQListView(APIView):
+    """
+    Lists all FAQs, optionally filtered by a category ID.
+    Used for the main FAQ page.
+    """
 
     def get(self, request):
         category_id = request.query_params.get('category', None)
@@ -61,6 +82,9 @@ class FAQListView(APIView):
         return Response(serializer.data)
 
 class FAQSearchView(APIView):
+    """
+    Search endpoint for FAQs based on a search query 'q'.
+    """
 
     def get(self, request):
         query = request.query_params.get('q', '')
@@ -69,6 +93,10 @@ class FAQSearchView(APIView):
         return Response(serializer.data)
 
 class FAQDetailView(APIView):
+    """
+    Retrieves details of a specific FAQ by its slug.
+    Also increments the view count for analytics.
+    """
 
     def get(self, request, slug):
         faq = FAQService.get_faq(slug)

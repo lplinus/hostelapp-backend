@@ -1,10 +1,23 @@
+"""
+Services for the Rooms application.
+This module contains business logic for rooms, such as grouping rooms by hostel and category.
+"""
 from django.db.models import Prefetch
 from .models import RoomType
 
 
 class GroupedRoomsService:
+    """
+    Service class to handle complex room data transformations.
+    Mainly used to group room types by their parent hostel and category for easier display on the frontend.
+    """
     @staticmethod
     def get_grouped_rooms(user=None):
+        """
+        Retrieves and groups room types.
+        If a user is provided, it filters rooms by hostels owned by that user.
+        Returns a structured list of hostels, each containing their room categories and respective room data.
+        """
         # Base queryset with optimization
         queryset = RoomType.objects.select_related("hostel").prefetch_related("beds")
 
