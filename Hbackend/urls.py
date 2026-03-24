@@ -26,8 +26,14 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 
+# Admin Customization
+admin.site.site_header = "hostelin"
+admin.site.site_title = "myhostel admin"
+admin.site.index_title = "Welcome to myhostel admin Portal"
+
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    # path("admin/", admin.site.urls),
+    path("myhostelsadmin/", admin.site.urls),
     # DRF Spectacular schema
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
