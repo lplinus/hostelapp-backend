@@ -7,6 +7,7 @@ from .views import (
     AreaViewSet,
     CityHostelsAPIView,
     SearchHostelsAPIView,
+    InnerSearchHostelsAPIView,
 )
 
 router = DefaultRouter()
@@ -17,6 +18,9 @@ router.register("areas", AreaViewSet, basename="area")
 
 urlpatterns = [
     path("search/", SearchHostelsAPIView.as_view(), name="search-hostels"),
+    path(
+        "inner-search/", InnerSearchHostelsAPIView.as_view(), name="inner-search-hostels"
+    ),
     path(
         "cities/<slug:slug>/hostels/", CityHostelsAPIView.as_view(), name="city-hostels"
     ),

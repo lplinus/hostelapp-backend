@@ -9,7 +9,7 @@ from .serializers import (
     AreaSerializer,
 )
 from .services.city_hostel_service import get_hostels_by_city
-from .services.search_hostel_service import search_hostels
+from .services.search_hostel_service import search_hostels, inner_search_hostels
 from hostels.models import Hostel
 from hostels.serializers import CityHostelListSerializer
 
@@ -129,6 +129,35 @@ class SearchHostelsAPIView(APIView):
                 "query": query,
                 "budget": budget,
                 "gender": gender,
+                "total": hostels.count(),
+                "results": serializer.data,
+            }
+        )
+
+
+class InnerSearchHostelsAPIView(APIView):
+    """
+    GET /api/locations/inner-search/?q=...
+    Dedicated search for the hostel listing page.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        query = request.query_params.get("q", "").strip()
+        city = request.query_params.get("city", "").strip()
+        hostel_type = request.query_params.get("type", "").strip()
+
+        hostels = inner_search_hostels(query=query, city=city, hostel_type=hostel_type)
+        serializer = CityHostelListSerializer(
+            hostels, many=True, context={"request": request}
+        )
+
+        return Response(
+            {
+                "query": query,
+                "city": city,
+                "type": hostel_type,
                 "total": hostels.count(),
                 "results": serializer.data,
             }

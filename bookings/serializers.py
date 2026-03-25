@@ -47,4 +47,4 @@ class BookingSerializer(serializers.ModelSerializer):
     def get_payment_status(self, obj):
         if hasattr(obj, "payment"):
             return obj.payment.status
-        return None
+        return obj.payment_status

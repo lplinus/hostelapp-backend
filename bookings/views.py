@@ -99,15 +99,26 @@ class BookingViewSet(viewsets.ModelViewSet):
         """
         Marks a booking as 'completed' (checked-in).
         Verification: Booking must be 'confirmed' and the user must be the hostel owner or staff.
+        Accepts both full UUID and display-format IDs like 'STN-77D76716'.
         """
         booking_id = request.data.get("booking_id")
         if not booking_id:
             return Response({"error": "booking_id is required"}, status=400)
 
+        booking_id = str(booking_id).strip()
+
         try:
-            booking = Booking.objects.get(id=booking_id)
+            # If the booking_id is in display format (e.g. STN-77D76716),
+            # strip the prefix and search by the first 8 hex chars of the UUID.
+            if booking_id.upper().startswith("STN-"):
+                short_hex = booking_id[4:].lower()  # e.g. "77d76716"
+                booking = Booking.objects.get(id__startswith=short_hex)
+            else:
+                booking = Booking.objects.get(id=booking_id)
         except Booking.DoesNotExist:
             return Response({"error": "Booking not found"}, status=404)
+        except Exception:
+            return Response({"error": "Invalid booking ID format"}, status=400)
 
         if not request.user.is_staff and booking.hostel.owner != request.user:
             raise PermissionDenied("You do not have permission to check-in this booking.")
@@ -119,6 +130,9 @@ class BookingViewSet(viewsets.ModelViewSet):
             return Response({"error": "Only confirmed bookings can be checked in"}, status=400)
 
         booking.status = "completed"
+        # Mark payment as paid for "pay at hostel" bookings upon check-in
+        if booking.payment_method == "on_arrival":
+            booking.payment_status = "paid"
         booking.save()
 
         return Response({
