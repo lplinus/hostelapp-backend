@@ -16,6 +16,8 @@ class UserSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     """Safe user profile serializer — public-facing, no sensitive data."""
 
+    password = serializers.CharField(write_only=True, required=False, min_length=8)
+
     class Meta:
         model = User
         fields = [
@@ -31,6 +33,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "is_phone_verified",
             "profile_picture",
             "date_joined",
+            "password",
         ]
         read_only_fields = [
             "id",
@@ -48,6 +51,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
+        # Handle password update
+        password = validated_data.pop("password", None)
+        if password and password != "********":
+            instance.set_password(password)
+
         # Reset phone verification if the phone number is changed via profile edit
         new_phone = validated_data.get("phone")
         if new_phone is not None and new_phone != instance.phone:

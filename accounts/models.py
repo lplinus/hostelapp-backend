@@ -17,6 +17,7 @@ class User(AbstractUser, SoftDeleteModel):
     ROLE_CHOICES = (
         ("guest", "Guest"),
         ("hostel_owner", "Hostel Owner"),
+        ("vendor", "Vendor"),
         # ("admin", "Admin"),
     )
 

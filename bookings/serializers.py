@@ -34,6 +34,45 @@ class BookingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Age must be between 10 and 100.")
         return value
 
+#booking data validation===========================
+    def validate(self, data):
+        check_in = data.get("check_in")
+        check_out = data.get("check_out")
+        mobile_number = data.get("mobile_number")
+        guest_email = data.get("guest_email")
+
+        if not check_in or not check_out:
+            return data
+
+        from django.db.models import Q
+
+        # Check for overlapping bookings with the same mobile or email
+        # Excluding 'cancelled' bookings
+        duplicate_query = Q()
+        if mobile_number:
+            duplicate_query |= Q(mobile_number=mobile_number)
+        if guest_email:
+            duplicate_query |= Q(guest_email=guest_email)
+
+        if duplicate_query:
+            existing_bookings = Booking.objects.filter(
+                duplicate_query
+            ).filter(
+                check_in__lt=check_out,
+                check_out__gt=check_in
+            ).exclude(status="cancelled")
+
+            if self.instance:
+                existing_bookings = existing_bookings.exclude(pk=self.instance.pk)
+
+            if existing_bookings.exists():
+                raise serializers.ValidationError(
+                    "A booking already exists for this mobile number or email during the selected dates. "
+                    "Please choose different dates or manage your existing booking."
+                )
+
+        return data
+
     def get_room_category(self, obj):
         if hasattr(obj, "room_type") and obj.room_type:
             return f"{obj.room_type.get_room_category_display()} - {obj.room_type.get_sharing_type_display()}"
