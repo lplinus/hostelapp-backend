@@ -74,6 +74,9 @@ urlpatterns = [
         ).UserMeView.as_view(),
         name="user_me",
     ),
+
+    #marketplace
+    path("api/marketplace/", include("marketplace.urls")),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

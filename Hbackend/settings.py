@@ -80,6 +80,10 @@ INSTALLED_APPS = [
     "cms",
     "blog",
     "publicpages",
+#vendors and marketplace
+
+    "marketplace",
+    "django_cleanup.apps.CleanupConfig",
 ]
 
 MIDDLEWARE = [

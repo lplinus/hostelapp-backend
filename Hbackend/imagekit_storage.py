@@ -89,7 +89,38 @@ class ImageKitStorage(Storage):
 
     def delete(self, name):
         """
-        Optional: Delete from ImageKit if we have the fileId.
-        For now, we just pass to avoid errors.
+        Delete from ImageKit using the name/URL.
         """
-        pass
+        if not name:
+            return
+
+        try:
+            # Extract path from URL if necessary
+            path_val = name
+            endpoint = settings.IMAGEKIT_URL_ENDPOINT.rstrip('/')
+            if name.startswith('http'):
+                if name.startswith(endpoint):
+                    path_val = name[len(endpoint):].lstrip('/')
+                else:
+                    return
+
+            # For SDK 5.x (Stainless), it's best to split path into folder and name
+            folder = os.path.dirname(path_val)
+            if not folder.startswith('/'):
+                folder = '/' + folder
+            filename = os.path.basename(path_val)
+
+            # Search for the file to get its file_id
+            # Using keyword arguments as per SDK 5.x
+            files = self.client.files.list(name=filename, path=folder)
+            
+            # Since files is a ListResponse, we iterate or access [0]
+            # Stainless returns a Paginator/List object
+            for file in files:
+                if (file.name == filename and 
+                    (file.folder_path == folder or file.folder_path == folder.rstrip('/'))):
+                    self.client.files.delete(file.file_id)
+                    print(f"DEBUG: Deleted file {path_val} (ID: {file.file_id}) from ImageKit")
+                    return # Exit after deleting first match
+        except Exception as e:
+            print(f"DEBUG: ImageKit delete failed for {name}: {e}")
