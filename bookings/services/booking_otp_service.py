@@ -1,5 +1,5 @@
 import os
-import random
+import secrets
 from django.utils import timezone
 from datetime import timedelta
 from twilio.rest import Client
@@ -15,8 +15,8 @@ class BookingOTPService:
         if not phone:
             raise ValueError("No phone number provided.")
             
-        # Generate 6-digit code
-        code = str(random.randint(100000, 999999))
+        # Generate secure 6-digit code
+        code = f"{secrets.randbelow(1000000):06d}"
         
         # Save to database
         otp_obj = BookingOTP.objects.create(

@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from datetime import timedelta
-import random
+import secrets
 from django.contrib.auth.models import UserManager as DjangoUserManager
 from Hbackend.base_models import SoftDeleteModel, SoftDeleteManager
 from Hbackend.utils import validate_image_size
@@ -64,8 +64,8 @@ class VerificationCode(SoftDeleteModel):
 
     @classmethod
     def generate_code(cls, user, type):
-        # Generate 6-digit code
-        code = str(random.randint(100000, 999999))
+        # Generate secure 6-digit code
+        code = f"{secrets.randbelow(1000000):06d}"
         return cls.objects.create(user=user, code=code, type=type)
 
     def is_valid(self):

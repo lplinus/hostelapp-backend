@@ -168,17 +168,23 @@ class LoginView(APIView):
         user = serializer.validated_data["user"]
         tokens = AuthService.get_tokens_for_user(user)
 
-        response = Response(
-            {
-                "access": tokens["access"],
-                "user": UserProfileSerializer(user).data,
-            },
-            status=status.HTTP_200_OK,
-        )
+        response_data = {
+            "access": tokens["access"],
+            "user": UserProfileSerializer(user).data,
+        }
+
+        # Redirect logic based on role
+        if user.role == "vendor":
+            response_data["redirect_url"] = "/vendordashboard/vendors"
+        else:
+            response_data["redirect_url"] = "/dashboard"
+
+        response = Response(response_data, status=status.HTTP_200_OK)
 
         # Set tokens as HttpOnly cookies so user stays logged in across refreshes
         AuthService.set_refresh_cookie(response, tokens["refresh"])
         AuthService.set_access_cookie(response, tokens["access"])
+        AuthService.set_role_cookie(response, user.role)
 
         from django.conf import settings
 
@@ -218,6 +224,7 @@ class LogoutView(APIView):
 
         AuthService.delete_refresh_cookie(response)
         AuthService.delete_access_cookie(response)
+        AuthService.delete_role_cookie(response)
 
         # Clear CSRF cookie
         response.delete_cookie("csrftoken", path="/", samesite="Lax")

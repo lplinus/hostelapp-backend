@@ -285,6 +285,20 @@ class AuthService:
         return response
 
     @staticmethod
+    def set_role_cookie(response, role: str):
+        """Set the user role as a non-HttpOnly cookie for middleware redirection."""
+        response.set_cookie(
+            key="user_role",
+            value=role,
+            httponly=False,  # Must be readable by middleware/client logic
+            secure=not settings.DEBUG,
+            samesite="Lax",
+            max_age=30 * 24 * 60 * 60,  # 30 days
+            path="/",
+        )
+        return response
+
+    @staticmethod
     def delete_refresh_cookie(response):
         """Remove the refresh token cookie."""
         response.delete_cookie(
@@ -299,6 +313,16 @@ class AuthService:
         """Remove the access token cookie."""
         response.delete_cookie(
             key="access_token",
+            path="/",
+            samesite="Lax",
+        )
+        return response
+
+    @staticmethod
+    def delete_role_cookie(response):
+        """Remove the user role cookie."""
+        response.delete_cookie(
+            key="user_role",
             path="/",
             samesite="Lax",
         )

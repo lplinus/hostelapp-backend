@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from accounts.models import User
+from vendors.serializers import VendorSerializer
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -17,6 +18,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     """Safe user profile serializer — public-facing, no sensitive data."""
 
     password = serializers.CharField(write_only=True, required=False, min_length=8)
+    vendor_profile = VendorSerializer(read_only=True)
 
     class Meta:
         model = User
@@ -34,6 +36,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "profile_picture",
             "date_joined",
             "password",
+            "vendor_profile",
         ]
         read_only_fields = [
             "id",
@@ -43,6 +46,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "is_email_verified",
             "is_phone_verified",
             "date_joined",
+            "vendor_profile",
         ]
 
     def validate_profile_picture(self, value):
