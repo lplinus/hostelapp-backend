@@ -80,11 +80,9 @@ INSTALLED_APPS = [
     "cms",
     "blog",
     "publicpages",
-   
-#vendors and marketplace
-
+    # vendors and marketplace
     "marketplace",
-     "orders",
+    "orders",
     "vendors",
     "django_cleanup.apps.CleanupConfig",
 ]

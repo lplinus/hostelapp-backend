@@ -64,7 +64,24 @@ class Product(SoftDeleteModel):
         blank=True,
         validators=[validate_image_size]
     )
-    stock = models.PositiveIntegerField(default=0)
+    # Flexible Quantity Support
+    QUANTITY_UNIT_CHOICES = [
+        ('kg', 'Kilograms (kg)'),
+        ('number', 'Numbers/Units'),
+        ('ltr', 'Liters (L)'),
+        ('pkt', 'Packet'),
+    ]
+    quantity_unit = models.CharField(
+        max_length=10, 
+        choices=QUANTITY_UNIT_CHOICES, 
+        default='number'
+    )
+    quantity_steps = models.JSONField(
+        default=list, 
+        blank=True, 
+        help_text="Define steps like [5, 10, 15] for bulk selection"
+    )
+    stock = models.PositiveIntegerField(null=True, blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
     is_featured = models.BooleanField(default=False, db_index=True)
     

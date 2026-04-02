@@ -8,6 +8,18 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'price', 'stock', 'is_active')
-    list_filter = ('category', 'is_active', 'is_featured')
+    list_display = ('name', 'category', 'price', 'quantity_unit', 'stock', 'is_active')
+    list_filter = ('category', 'is_active', 'is_featured', 'quantity_unit')
     search_fields = ('name', 'description')
+    fieldsets = (
+        (None, {
+            'fields': ('category', 'vendor', 'name', 'slug', 'description', 'price', 'image')
+        }),
+        ('Quantity Settings', {
+            'fields': ('quantity_unit', 'quantity_steps', 'stock')
+        }),
+        ('Status', {
+            'fields': ('is_active', 'is_featured')
+        }),
+    )
+    prepopulated_fields = {'slug': ('name',)}

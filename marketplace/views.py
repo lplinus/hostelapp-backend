@@ -47,10 +47,17 @@ class ProductViewSet(viewsets.ModelViewSet):
         queryset = Product.objects.all().select_related('vendor', 'category')
         user = self.request.user
         
+        # Check if specifically requesting personal items
+        mine = self.request.query_params.get('mine', 'false').lower() == 'true'
+        
         if user.is_authenticated:
             try:
                 vendor = Vendor.objects.get(owner=user)
-                # Vendors see all their own (active or not) plus active products from others
+                if mine:
+                    # Dashboard view: Only see own products
+                    return queryset.filter(vendor=vendor)
+                
+                # Discovery view: See own products (even inactive) + active products from others
                 return queryset.filter(models.Q(vendor=vendor) | models.Q(is_active=True))
             except Vendor.DoesNotExist:
                 pass
@@ -83,7 +90,7 @@ class ProductViewSet(viewsets.ModelViewSet):
                 vendor=vendor, 
                 data=serializer.validated_data
             )
-            response_serializer = ProductSerializer(product)
+            response_serializer = ProductSerializer(product, context={'request': request})
             return Response({
                 "success": True,
                 "message": "Product added to marketplace successfully.",
@@ -113,7 +120,7 @@ class ProductViewSet(viewsets.ModelViewSet):
                 vendor=vendor,
                 data=serializer.validated_data
             )
-            response_serializer = ProductSerializer(product)
+            response_serializer = ProductSerializer(product, context={'request': request})
             return Response({
                 "success": True,
                 "message": "Product updated successfully.",

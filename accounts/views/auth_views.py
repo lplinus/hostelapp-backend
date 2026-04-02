@@ -3,6 +3,7 @@ Authentication Views for the Accounts application.
 This module handles user registration, email/phone verification,
 login, logout, and token refresh logic using JWT and cookies.
 """
+
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -23,11 +24,12 @@ from accounts.models import User
 
 class RegisterView(APIView):
     """
-    Handles user registration. 
+    Handles user registration.
     POST /api/auth/register/
     Expects user data (email, password, etc.), creates a new inactive user,
     and triggers an email verification code.
     """
+
     """POST /api/auth/register/ — Create a new user account."""
 
     permission_classes = [AllowAny]
@@ -54,6 +56,7 @@ class VerifyEmailView(APIView):
     POST /api/auth/verify-email/
     Activates the user account upon successful verification.
     """
+
     """POST /api/auth/verify-email/ — Verify user account via email code."""
 
     permission_classes = [AllowAny]
@@ -90,6 +93,7 @@ class SendOTPView(APIView):
     POST /api/auth/send-otp/
     Requires the user to be authenticated.
     """
+
     """POST /api/auth/send-otp/ — Send OTP to authenticated user's phone."""
 
     permission_classes = [IsAuthenticated]
@@ -97,10 +101,10 @@ class SendOTPView(APIView):
     def post(self, request):
         serializer = SendOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         user = request.user
         phone = serializer.validated_data.get("phone")
-        
+
         # if not user.phone: # Old check
         #     return Response(
         #         {"detail": "Phone number not set in profile."},
@@ -125,6 +129,7 @@ class VerifyOTPView(APIView):
     POST /api/auth/verify-otp/
     Updates the user's phone verification status upon success.
     """
+
     """POST /api/auth/verify-otp/ — Verify phone OTP."""
 
     permission_classes = [IsAuthenticated]
@@ -156,6 +161,7 @@ class LoginView(APIView):
     Tokens are returned in the response body (access) and set as HttpOnly cookies (access and refresh).
     Also sets a CSRF token for frontend security.
     """
+
     """POST /api/auth/login/ — Authenticate and return tokens."""
 
     permission_classes = [AllowAny]
@@ -207,6 +213,7 @@ class LogoutView(APIView):
     Logs out the user by blacklisting the refresh token and clearing relevant cookies.
     POST /api/auth/logout/
     """
+
     """POST /api/auth/logout/ — Blacklist refresh token and clear cookie."""
 
     permission_classes = [IsAuthenticated]
@@ -238,6 +245,7 @@ class RefreshView(APIView):
     POST /api/auth/refresh/
     Implements token rotation by issuing both a new access and a new refresh token.
     """
+
     """POST /api/auth/refresh/ — Issue new access token using refresh cookie."""
 
     permission_classes = [AllowAny]
@@ -254,10 +262,15 @@ class RefreshView(APIView):
         try:
             tokens = AuthService.refresh_access_token(refresh_token)
         except ValueError as e:
-            return Response(
+            response = Response(
                 {"detail": str(e)},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+            # Hard clear cookies if the refresh token is invalid
+            AuthService.delete_refresh_cookie(response)
+            AuthService.delete_access_cookie(response)
+            AuthService.delete_role_cookie(response)
+            return response
 
         response = Response(
             {"access": tokens["access"]},
@@ -276,6 +289,7 @@ class MeView(APIView):
     Returns the profile data of the currently authenticated user.
     GET /api/auth/me/
     """
+
     """GET /api/auth/me/ — Return the current authenticated user."""
 
     permission_classes = [IsAuthenticated]

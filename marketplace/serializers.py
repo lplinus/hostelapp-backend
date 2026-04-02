@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from .models import Category, Product
-from vendors.models import Vendor
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -17,7 +16,8 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'category', 'category_name', 'vendor', 'vendor_name', 
             'name', 'slug', 'description', 'price', 'image', 
-            'stock', 'is_active', 'is_featured'
+            'stock', 'quantity_unit', 'quantity_steps', 
+            'is_active', 'is_featured'
         ]
         read_only_fields = ['id', 'slug', 'category_name', 'vendor_name']
 
@@ -31,5 +31,6 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'category_id', 'name', 'description', 'price', 
-            'image', 'stock', 'is_active', 'is_featured'
+            'image', 'stock', 'quantity_unit', 'quantity_steps',
+            'is_active', 'is_featured'
         ]
