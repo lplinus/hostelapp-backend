@@ -52,7 +52,7 @@ class OrderService:
                 product = Product.objects.get(
                     id=item['product_id'], 
                     vendor=vendor, 
-                    is_available=True
+                    is_active=True
                 )
             except Product.DoesNotExist:
                 raise ValidationError(f"Product ID {item['product_id']} is unavailable or doesn't belong to this vendor.")

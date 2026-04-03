@@ -26,7 +26,7 @@ class MarketplaceSearchAPIView(views.APIView):
                 Q(description__icontains=query) |
                 Q(address__icontains=query) |
                 Q(vendor_types__icontains=query)
-            ).prefetch_related('marketplace_products')
+            ).prefetch_related('marketplace_products').distinct()
             results['vendors'] = VendorSerializer(vendors, many=True, context={'request': request}).data
 
         if search_type in ['products', 'all']:
@@ -35,7 +35,7 @@ class MarketplaceSearchAPIView(views.APIView):
                 Q(description__icontains=query) |
                 Q(category__name__icontains=query) |
                 Q(vendor__business_name__icontains=query)
-            ).select_related('vendor', 'category')
+            ).select_related('vendor', 'category').distinct()
             results['products'] = ProductSerializer(products, many=True, context={'request': request}).data
 
         return response.Response({
