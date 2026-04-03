@@ -16,7 +16,12 @@ from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied
 
 from .models import Payment, Subscription, VendorPricingPlan, VendorSubscription
-from .serializers import PaymentSerializer, SubscriptionSerializer, VendorPricingPlanSerializer, VendorSubscriptionSerializer
+from .serializers import (
+    PaymentSerializer,
+    SubscriptionSerializer,
+    VendorPricingPlanSerializer,
+    VendorSubscriptionSerializer,
+)
 from .services.payment_service import PaymentService, PaymentError
 
 logger = logging.getLogger(__name__)
@@ -201,34 +206,44 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def current(self, request):
-        subscription = Subscription.objects.filter(
-            user=request.user, is_active=True
-        ).order_by('-id').first()
+        subscription = (
+            Subscription.objects.filter(user=request.user, is_active=True)
+            .order_by("-id")
+            .first()
+        )
         if not subscription:
             return Response(
-                {"detail": "No active subscription found."},
-                status=status.HTTP_404_NOT_FOUND,
+                {"detail": "No active subscription found.", "has_subscription": False},
+                status=status.HTTP_200_OK,
             )
         serializer = self.get_serializer(subscription)
         return Response(serializer.data)
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # VENDOR PRICING PLANS VIEW
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class VendorPricingPlanAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def get(self, request):
-        plans = VendorPricingPlan.objects.prefetch_related('features').all().order_by('order')
+        plans = (
+            VendorPricingPlan.objects.prefetch_related("features")
+            .all()
+            .order_by("order")
+        )
         serializer = VendorPricingPlanSerializer(plans, many=True)
         return Response(serializer.data)
+
 
 class VendorSubscriptionViewSet(viewsets.ModelViewSet):
     """
     ViewSet for vendor subscriptions.
     Allows vendors to subscribe to plans for premium marketplace benefits.
     """
+
     queryset = VendorSubscription.objects.all()
     serializer_class = VendorSubscriptionSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -245,7 +260,9 @@ class VendorSubscriptionViewSet(viewsets.ModelViewSet):
         plan = serializer.validated_data.get("plan")
 
         # Deactivate previous active subscriptions for this user
-        VendorSubscription.objects.filter(user=user, is_active=True).update(is_active=False)
+        VendorSubscription.objects.filter(user=user, is_active=True).update(
+            is_active=False
+        )
 
         # Create dummy order details
         transaction_id = f"VSUB-{uuid.uuid4().hex[:10].upper()}"
@@ -253,6 +270,7 @@ class VendorSubscriptionViewSet(viewsets.ModelViewSet):
 
         # Set 3 months (90 days) duration
         from datetime import timedelta
+
         start_date = timezone.now()
         end_date = start_date + timedelta(days=90)
 
@@ -265,7 +283,7 @@ class VendorSubscriptionViewSet(viewsets.ModelViewSet):
         elif plan.name.lower() == "enterprise":
             max_products = 99999
             commission = 0.00
-            
+
         serializer.save(
             user=user,
             transaction_id=transaction_id,
@@ -279,13 +297,15 @@ class VendorSubscriptionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def current(self, request):
-        subscription = VendorSubscription.objects.filter(
-            user=request.user, is_active=True
-        ).order_by('-id').first()
+        subscription = (
+            VendorSubscription.objects.filter(user=request.user, is_active=True)
+            .order_by("-id")
+            .first()
+        )
         if not subscription:
             return Response(
-                {"detail": "No active vendor subscription found."},
-                status=status.HTTP_404_NOT_FOUND,
+                {"detail": "No active vendor subscription found.", "has_subscription": False},
+                status=status.HTTP_200_OK,
             )
         serializer = self.get_serializer(subscription)
         return Response(serializer.data)
