@@ -8,6 +8,7 @@ from hostels.models import Hostel
 from accounts.models import User
 from decimal import Decimal
 
+
 class OrderService:
     @staticmethod
     def _validate_hostel_owner(user: User, hostel_id: int) -> Hostel:
@@ -26,10 +27,10 @@ class OrderService:
         """
         Business logic for creating a catalog-based structured order.
         """
-        hostel = OrderService._validate_hostel_owner(user, data['hostel_id'])
-        
+        hostel = OrderService._validate_hostel_owner(user, data["hostel_id"])
+
         try:
-            vendor = Vendor.objects.get(id=data['vendor_id'], is_active=True)
+            vendor = Vendor.objects.get(id=data["vendor_id"], is_active=True)
         except Vendor.DoesNotExist:
             raise ValidationError("Vendor is inactive or doesn't exist.")
 
@@ -38,33 +39,33 @@ class OrderService:
             vendor=vendor,
             order_type=Order.OrderType.STRUCTURED,
             status=Order.StatusChoices.PENDING,
-            note=data.get('note', '')
+            note=data.get("note", ""),
         )
 
-        total_order_amount = Decimal('0.00')
-        items_data = data.get('items', [])
-        
+        total_order_amount = Decimal("0.00")
+        items_data = data.get("items", [])
+
         if not items_data:
             raise ValidationError("Structured orders must contain items.")
 
         for item in items_data:
             try:
                 product = Product.objects.get(
-                    id=item['product_id'], 
-                    vendor=vendor, 
-                    is_active=True
+                    id=item["product_id"], vendor=vendor, is_active=True
                 )
             except Product.DoesNotExist:
-                raise ValidationError(f"Product ID {item['product_id']} is unavailable or doesn't belong to this vendor.")
+                raise ValidationError(
+                    f"Product ID {item['product_id']} is unavailable or doesn't belong to this vendor."
+                )
 
-            total_item_price = product.price * item['quantity']
+            total_item_price = product.price * item["quantity"]
             OrderItem.objects.create(
                 order=order,
                 product=product,
                 product_name_at_order=product.name,
-                quantity=item['quantity'],
+                quantity=item["quantity"],
                 unit_price=product.price,
-                total_price=total_item_price
+                total_price=total_item_price,
             )
             total_order_amount += total_item_price
 
@@ -77,10 +78,10 @@ class OrderService:
         """
         Business logic for creating an image-based list order.
         """
-        hostel = OrderService._validate_hostel_owner(user, data['hostel_id'])
-        
+        hostel = OrderService._validate_hostel_owner(user, data["hostel_id"])
+
         try:
-            vendor = Vendor.objects.get(id=data['vendor_id'], is_active=True)
+            vendor = Vendor.objects.get(id=data["vendor_id"], is_active=True)
         except Vendor.DoesNotExist:
             raise ValidationError("Vendor is inactive or doesn't exist.")
 
@@ -89,8 +90,8 @@ class OrderService:
             vendor=vendor,
             order_type=Order.OrderType.IMAGE_SCAN,
             status=Order.StatusChoices.PENDING,
-            scan_image=data.get('scan_image'),
-            note=data.get('note', '')
+            scan_image=data.get("scan_image"),
+            note=data.get("note", ""),
         )
         return order
 
@@ -100,11 +101,13 @@ class OrderService:
         Verify that only vendors can update statuses of orders they received.
         """
         if order.vendor.owner != user:
-            raise PermissionDenied("Only the managing vendor can update this order status.")
-        
+            raise PermissionDenied(
+                "Only the managing vendor can update this order status."
+            )
+
         if new_status not in Order.StatusChoices.values:
             raise ValidationError("Invalid order status.")
-            
+
         order.status = new_status
         order.save()
         return order
@@ -115,8 +118,16 @@ class OrderService:
         Optimization: use select_related and prefetch_related based on role.
         """
         if user.role == "hostel_owner":
-            return Order.objects.filter(hostel__owner=user).select_related('vendor', 'hostel').prefetch_related('items')
+            return (
+                Order.objects.filter(hostel__owner=user)
+                .select_related("vendor", "hostel")
+                .prefetch_related("items")
+            )
         elif user.role == "vendor":
-            return Order.objects.filter(vendor__owner=user).select_related('vendor', 'hostel').prefetch_related('items')
+            return (
+                Order.objects.filter(vendor__owner=user)
+                .select_related("vendor", "hostel")
+                .prefetch_related("items")
+            )
         else:
             return Order.objects.none()
