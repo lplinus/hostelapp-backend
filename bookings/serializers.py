@@ -34,12 +34,13 @@ class BookingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Age must be between 10 and 100.")
         return value
 
-#booking data validation===========================
+    # booking data validation===========================
     def validate(self, data):
         check_in = data.get("check_in")
         check_out = data.get("check_out")
         mobile_number = data.get("mobile_number")
         guest_email = data.get("guest_email")
+        hostel = data.get("hostel")
 
         if not check_in or not check_out:
             return data
@@ -47,16 +48,17 @@ class BookingSerializer(serializers.ModelSerializer):
         from django.db.models import Q
 
         # Check for overlapping bookings with the same mobile or email
-        # Excluding 'cancelled' bookings
+        # ONLY for the SAME hostel (as per user requirement)
         duplicate_query = Q()
         if mobile_number:
             duplicate_query |= Q(mobile_number=mobile_number)
         if guest_email:
             duplicate_query |= Q(guest_email=guest_email)
 
-        if duplicate_query:
+        if duplicate_query and hostel:
             existing_bookings = Booking.objects.filter(
-                duplicate_query
+                duplicate_query,
+                hostel=hostel
             ).filter(
                 check_in__lt=check_out,
                 check_out__gt=check_in
@@ -67,8 +69,8 @@ class BookingSerializer(serializers.ModelSerializer):
 
             if existing_bookings.exists():
                 raise serializers.ValidationError(
-                    "A booking already exists for this mobile number or email during the selected dates. "
-                    "Please choose different dates or manage your existing booking."
+                    f"A booking already exists for this guest at {hostel.name} during the selected dates. "
+                    "You cannot have multiple active bookings at the same hostel for overlapping dates."
                 )
 
         return data
