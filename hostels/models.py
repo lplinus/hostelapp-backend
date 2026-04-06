@@ -98,6 +98,39 @@ class Hostel(SoftDeleteModel):
         max_digits=10, decimal_places=2, null=True, blank=True, editable=False
     )
     is_approved = models.BooleanField(default=False)
+    
+    def update_price_from_rooms(self):
+        """
+        Updates the hostel's price based on room types.
+        Prioritizes the one marked 'show_this_price', otherwise takes the minimum base_price.
+        """
+        # We import here to avoid circular dependencies
+        from rooms.models import RoomType
+        
+        rooms = RoomType.objects.filter(hostel=self)
+        if not rooms.exists():
+            return
+
+        # Prioritize one marked 'show_this_price'
+        selected_room = rooms.filter(show_this_price=True).first()
+        if not selected_room:
+            # Fallback to the one with the lowest price
+            selected_room = rooms.order_by("base_price").first()
+
+        if selected_room:
+            self.price = selected_room.base_price
+            
+            # Daily price fallback (monthly / 30) consistent with frontend logic
+            if selected_room.price_per_day:
+                self.price_per_day = selected_room.price_per_day
+            elif selected_room.base_price:
+                self.price_per_day = (selected_room.base_price / Decimal("30")).quantize(Decimal("1."))
+            else:
+                self.price_per_day = None
+
+            # Since the save() method also handles discounted pricing,
+            # we must call super().save() or self.save() to trigger it.
+            self.save(update_fields=['price', 'price_per_day'])
 
     def save(self, *args, **kwargs):
         delete_old_image_files(self, ["og_image"])

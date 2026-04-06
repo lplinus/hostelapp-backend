@@ -39,6 +39,9 @@ class RoomType(SoftDeleteModel):
     )
 
     is_available = models.BooleanField(default=True)
+    show_this_price = models.BooleanField(
+        default=False, help_text="Show this room type's price on the hostel card"
+    )
 
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -46,6 +49,18 @@ class RoomType(SoftDeleteModel):
     class Meta:
         ordering = ["base_price"]
         unique_together = ("hostel", "room_category", "sharing_type")
+
+    def save(self, *args, **kwargs):
+        # We need to save first to make sure this instance has a PK
+        # and so that it exists in the query below if newly created.
+        super().save(*args, **kwargs)
+        
+        # If this room type is set to show its price, ensure others are set to False
+        if self.show_this_price:
+            RoomType.objects.filter(hostel=self.hostel).exclude(pk=self.pk).update(show_this_price=False)
+            
+        # Trigger update of the hostel's price
+        self.hostel.update_price_from_rooms()
 
     def __str__(self):
         return f"{self.hostel.name} - {self.get_room_category_display()} - {self.get_sharing_type_display()}"

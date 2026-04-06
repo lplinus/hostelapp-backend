@@ -49,6 +49,7 @@ class RoomTypeSerializer(serializers.ModelSerializer):
             "price",
             "price_per_day",
             "is_available",
+            "show_this_price",
             "total_beds",
             "available_beds",
             "beds",
