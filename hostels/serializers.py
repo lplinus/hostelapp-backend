@@ -272,6 +272,7 @@ class CityHostelListSerializer(serializers.ModelSerializer):
     final_price = serializers.SerializerMethodField()
     rating = serializers.FloatField(source="rating_avg", read_only=True)
     rating_count = serializers.SerializerMethodField()
+    room_types = RoomTypeSerializer(many=True, read_only=True)
 
     class Meta:
         model = Hostel
@@ -293,6 +294,7 @@ class CityHostelListSerializer(serializers.ModelSerializer):
             "city_name",
             "is_verified",
             "is_approved",
+            "room_types",
         ]
 
     def get_rating_count(self, obj):

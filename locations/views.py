@@ -74,7 +74,7 @@ class CityHostelsAPIView(APIView):
             hostels = (
                 Hostel.objects.filter(is_active=True, is_approved=True)
                 .select_related("area", "city")
-                .prefetch_related("images")
+                .prefetch_related("images", "room_types")
                 .order_by("-rating_avg")
             )
             serializer = CityHostelListSerializer(
@@ -147,8 +147,16 @@ class InnerSearchHostelsAPIView(APIView):
         query = request.query_params.get("q", "").strip()
         city = request.query_params.get("city", "").strip()
         hostel_type = request.query_params.get("type", "").strip()
+        room_type = request.query_params.get("room_type", "").strip()
+        sharing = request.query_params.get("sharing", "").strip()
 
-        hostels = inner_search_hostels(query=query, city=city, hostel_type=hostel_type)
+        hostels = inner_search_hostels(
+            query=query,
+            city=city,
+            hostel_type=hostel_type,
+            room_type=room_type,
+            sharing=sharing,
+        )
         serializer = CityHostelListSerializer(
             hostels, many=True, context={"request": request}
         )
@@ -158,6 +166,8 @@ class InnerSearchHostelsAPIView(APIView):
                 "query": query,
                 "city": city,
                 "type": hostel_type,
+                "room_type": room_type,
+                "sharing": sharing,
                 "total": hostels.count(),
                 "results": serializer.data,
             }

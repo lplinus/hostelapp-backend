@@ -9,7 +9,7 @@ def get_hostels_by_city(city_slug: str):
     hostels = (
         Hostel.objects.filter(city=city, is_active=True, is_approved=True)
         .select_related("area", "city")
-        .prefetch_related("images")
+        .prefetch_related("images", "room_types")
         .order_by("-rating_avg")
     )
 

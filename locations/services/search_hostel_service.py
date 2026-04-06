@@ -10,7 +10,7 @@ def search_hostels(query: str = "", budget: int = None, gender: str = ""):
     qs = (
         Hostel.objects.filter(is_active=True, is_approved=True)
         .select_related("area", "city")
-        .prefetch_related("images")
+        .prefetch_related("images", "room_types")
     )
 
     # Keywords mapping (e.g., "hyd" -> "Hyderabad")
@@ -71,14 +71,14 @@ def search_hostels(query: str = "", budget: int = None, gender: str = ""):
     return qs.order_by("-rating_avg")
 
 
-def inner_search_hostels(query: str = "", city: str = "", hostel_type: str = ""):
+def inner_search_hostels(query: str = "", city: str = "", hostel_type: str = "", room_type: str = "", sharing: str = ""):
     """
     Dedicated logic for inner hostel search (listing page).
     """
     qs = (
         Hostel.objects.filter(is_active=True, is_approved=True)
         .select_related("area", "city")
-        .prefetch_related("images")
+        .prefetch_related("images", "room_types")
     )
 
     KEYWORD_MAPPINGS = {
@@ -114,7 +114,19 @@ def inner_search_hostels(query: str = "", city: str = "", hostel_type: str = "")
     if city and city != "All Cities":
         qs = qs.filter(city__name__iexact=city)
 
-    if hostel_type and hostel_type != "all":
+    if hostel_type and hostel_type != "all" and hostel_type != "All Types":
         qs = qs.filter(hostel_type=hostel_type)
+
+    if room_type and room_type != "All Room Types":
+        # Map frontend "Non-AC" to backend "NON_AC"
+        backend_room_type = "NON_AC" if room_type == "Non-AC" else "AC"
+        qs = qs.filter(room_types__room_category=backend_room_type).distinct()
+
+    if sharing and sharing != "All Sharing Types":
+        try:
+            sharing_val = int(sharing)
+            qs = qs.filter(room_types__sharing_type=sharing_val).distinct()
+        except ValueError:
+            pass
 
     return qs.order_by("-rating_avg")

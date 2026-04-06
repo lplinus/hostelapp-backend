@@ -242,7 +242,7 @@ class TypeHostelsAPIView(APIView):
             hostels = (
                 Hostel.objects.filter(is_active=True, is_approved=True)
                 .select_related("city", "area")
-                .prefetch_related("images")
+                .prefetch_related("images", "room_types")
             )
             type_name = "All Hostels"
         else:
@@ -252,7 +252,7 @@ class TypeHostelsAPIView(APIView):
                     hostel_type=type_slug, is_active=True, is_approved=True
                 )
                 .select_related("city", "area")
-                .prefetch_related("images")
+                .prefetch_related("images", "room_types")
             )
             # Get human-readable name if possible
             choices = dict(Hostel.HostelType.choices)
