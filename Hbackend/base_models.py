@@ -50,7 +50,7 @@ class SoftDeleteAdmin(admin.ModelAdmin):
         return self.model.all_objects.all()
 
     def delete_model(self, request, obj):
-        # Allow hard delete from admin if desired, 
-        # or stick to soft delete. 
-        # Usually, admin delete should be hard delete if the user said "unless deleting it manually".
-        obj.hard_delete()
+        """
+        Perform soft delete instead of hard delete when 'Delete' is clicked in the admin.
+        """
+        obj.delete()

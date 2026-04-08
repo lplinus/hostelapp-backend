@@ -101,7 +101,7 @@ def delete_old_image_files(instance, field_names):
     try:
         # Get the current version of the instance from the database
         model = instance.__class__
-        old_instance = model.objects.filter(pk=instance.pk).first()
+        old_instance = model.all_objects.filter(pk=instance.pk).first()
         if not old_instance:
             return
 

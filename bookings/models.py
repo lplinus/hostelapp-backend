@@ -78,6 +78,7 @@ class Booking(SoftDeleteModel):
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default="online")
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default="pending")
 
+    cooldown_until = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

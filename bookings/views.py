@@ -42,10 +42,15 @@ class BookingViewSet(viewsets.ModelViewSet):
     #     serializer.save(user=self.request.user)
 
     def perform_create(self, serializer):
+        from django.utils import timezone
+        from datetime import timedelta
+        # Default cooldown is 24 hours
+        cooldown_time = timezone.now() + timedelta(hours=24)
+
         if self.request.user.is_authenticated:
-            serializer.save(user=self.request.user)
+            serializer.save(user=self.request.user, cooldown_until=cooldown_time)
         else:
-            serializer.save()
+            serializer.save(cooldown_until=cooldown_time)
 
     def perform_update(self, serializer):
         obj = serializer.instance
@@ -161,32 +166,36 @@ class BookingViewSet(viewsets.ModelViewSet):
         Includes a 24-hour duplicate booking check and a smart OTP skip for previous users.
         """
         phone = request.data.get("phone")
-        hostel_id = request.data.get("hostel_id")
 
         if not phone:
             return Response({"error": "phone is required"}, status=400)
 
-        # 1. 24-hour Duplicate Booking Check
-        if hostel_id:
-            from django.utils import timezone
-            from datetime import timedelta
+        # 1. Booking Cooldown Check (Using the new cooldown_until column)
+        from django.utils import timezone
 
-            yesterday = timezone.now() - timedelta(hours=24)
-            recent_booking = Booking.objects.filter(
-                mobile_number=phone,
-                hostel_id=hostel_id,
-                created_at__gte=yesterday,
-                status__in=["pending", "confirmed", "completed"],
-            ).exists()
+        recent_booking = (
+            Booking.objects.filter(mobile_number=phone)
+            .order_by("-created_at")
+            .first()
+        )
 
-            if recent_booking:
-                return Response(
-                    {
-                        "error": "You've already booked this hostel within the last 24 hours. Duplicate bookings are not allowed.",
-                        "is_duplicate": True,
-                    },
-                    status=400,
-                )
+        if (
+            recent_booking
+            and recent_booking.cooldown_until
+            and recent_booking.cooldown_until > timezone.now()
+        ):
+            remaining_seconds = int(
+                (recent_booking.cooldown_until - timezone.now()).total_seconds()
+            )
+            return Response(
+                {
+                    "error": "You have a pending or recent booking. Please wait 24 hours before booking another hostel.",
+                    "is_cooldown": True,
+                    "remaining_seconds": remaining_seconds,
+                    "cooldown_until": recent_booking.cooldown_until,
+                },
+                status=400,
+            )
 
         # 2. Smart OTP: Check if already verified via previous successful booking
         if Booking.objects.filter(
@@ -206,7 +215,6 @@ class BookingViewSet(viewsets.ModelViewSet):
             return Response({"message": "OTP sent successfully", "verified": False})
         except Exception as e:
             return Response({"error": str(e)}, status=500)
-
 
     @decorators.action(
         detail=False, methods=["post"], permission_classes=[permissions.AllowAny]
