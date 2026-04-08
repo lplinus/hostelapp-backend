@@ -183,6 +183,7 @@ class BookingViewSet(viewsets.ModelViewSet):
             recent_booking
             and recent_booking.cooldown_until
             and recent_booking.cooldown_until > timezone.now()
+            and recent_booking.status not in ["completed", "cancelled"]
         ):
             remaining_seconds = int(
                 (recent_booking.cooldown_until - timezone.now()).total_seconds()
