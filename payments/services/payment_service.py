@@ -50,8 +50,12 @@ class PaymentService:
                 f"Booking is already '{booking.status}'. Only pending bookings can be paid."
             )
 
-        # ── Amount ONLY from server-side booking — never trust frontend ──
-        amount_paise = int(booking.total_price * 100)
+        # ── FIXED Booking Fee of ₹59 as per user requirement ──
+        # The remainder will be collected at the property.
+        if booking.payment_method == "online":
+            amount_paise = 5900  # ₹59.00
+        else:
+            amount_paise = int(booking.total_price * 100)
 
         try:
             order = _razorpay_client.order.create({
@@ -121,7 +125,11 @@ class PaymentService:
             logger.error("Razorpay order fetch failed: %s", e)
             raise PaymentError("Could not verify payment amount.")
 
-        expected_amount = int(payment.booking.total_price * 100)
+        if payment.booking.payment_method == "online":
+            expected_amount = 5900 # ₹59
+        else:
+            expected_amount = int(payment.booking.total_price * 100)
+        
         if rz_order["amount"] != expected_amount:
             logger.warning(
                 "Amount mismatch: Razorpay=%s, Expected=%s, order=%s",
@@ -185,7 +193,11 @@ class PaymentService:
             return {"detail": "Payment already captured."}
 
         # ── Amount verification ──────────────────────────────────────────
-        expected_amount = int(payment.booking.total_price * 100)
+        if payment.booking.payment_method == "online":
+            expected_amount = 5900 # ₹59
+        else:
+            expected_amount = int(payment.booking.total_price * 100)
+            
         webhook_amount = entity.get("amount", 0)
 
         if webhook_amount != expected_amount:

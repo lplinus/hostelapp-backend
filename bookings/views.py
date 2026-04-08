@@ -3,6 +3,7 @@ Views for the Bookings application.
 This module handles the creation, retrieval, and management of hostel bookings.
 Includes support for guest bookings, OTP verification, and owner/staff dashboards.
 """
+
 from rest_framework import viewsets, permissions, decorators, filters, status
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
@@ -17,12 +18,17 @@ class BookingViewSet(viewsets.ModelViewSet):
     Provides standard CRUD operations and custom actions for booking management.
     Supports filtering, searching, and ordering of booking records.
     """
+
     queryset = Booking.objects.select_related("user", "hostel", "room_type").order_by(
         "-created_at"
     )
     serializer_class = BookingSerializer
     pagination_class = None
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
     filterset_fields = {
         "check_in": ["gte", "lte", "exact"],
         "check_out": ["gte", "lte", "exact"],
@@ -41,7 +47,6 @@ class BookingViewSet(viewsets.ModelViewSet):
         else:
             serializer.save()
 
-
     def perform_update(self, serializer):
         obj = serializer.instance
         if not self.request.user.is_staff:
@@ -59,7 +64,12 @@ class BookingViewSet(viewsets.ModelViewSet):
         instance.delete()
 
     def get_permissions(self):
-        if self.action in ["create", "send_otp", "verify_otp", "confirm_pay_at_property"]:
+        if self.action in [
+            "create",
+            "send_otp",
+            "verify_otp",
+            "confirm_pay_at_property",
+        ]:
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
@@ -75,6 +85,7 @@ class BookingViewSet(viewsets.ModelViewSet):
             return super().get_queryset().none()
 
         from django.db.models import Q
+
         return super().get_queryset().filter(Q(user=user) | Q(hostel__owner=user))
 
     @decorators.action(
@@ -121,13 +132,17 @@ class BookingViewSet(viewsets.ModelViewSet):
             return Response({"error": "Invalid booking ID format"}, status=400)
 
         if not request.user.is_staff and booking.hostel.owner != request.user:
-            raise PermissionDenied("You do not have permission to check-in this booking.")
+            raise PermissionDenied(
+                "You do not have permission to check-in this booking."
+            )
 
         if booking.status == "completed":
             return Response({"error": "Booking already checked in"}, status=400)
 
         if booking.status != "confirmed":
-            return Response({"error": "Only confirmed bookings can be checked in"}, status=400)
+            return Response(
+                {"error": "Only confirmed bookings can be checked in"}, status=400
+            )
 
         booking.status = "completed"
         # Mark payment as paid for "pay at hostel" bookings upon check-in
@@ -135,10 +150,7 @@ class BookingViewSet(viewsets.ModelViewSet):
             booking.payment_status = "paid"
         booking.save()
 
-        return Response({
-            "message": "Check-in successful",
-            "booking_id": booking.id
-        })
+        return Response({"message": "Check-in successful", "booking_id": booking.id})
 
     @decorators.action(
         detail=False, methods=["post"], permission_classes=[permissions.AllowAny]
@@ -146,18 +158,55 @@ class BookingViewSet(viewsets.ModelViewSet):
     def send_otp(self, request):
         """
         Sends an OTP to the provided phone number for booking verification.
-        Useful for anonymous/guest booking flows.
+        Includes a 24-hour duplicate booking check and a smart OTP skip for previous users.
         """
         phone = request.data.get("phone")
+        hostel_id = request.data.get("hostel_id")
+
         if not phone:
             return Response({"error": "phone is required"}, status=400)
-        
+
+        # 1. 24-hour Duplicate Booking Check
+        if hostel_id:
+            from django.utils import timezone
+            from datetime import timedelta
+
+            yesterday = timezone.now() - timedelta(hours=24)
+            recent_booking = Booking.objects.filter(
+                mobile_number=phone,
+                hostel_id=hostel_id,
+                created_at__gte=yesterday,
+                status__in=["pending", "confirmed", "completed"],
+            ).exists()
+
+            if recent_booking:
+                return Response(
+                    {
+                        "error": "You've already booked this hostel within the last 24 hours. Duplicate bookings are not allowed.",
+                        "is_duplicate": True,
+                    },
+                    status=400,
+                )
+
+        # 2. Smart OTP: Check if already verified via previous successful booking
+        if Booking.objects.filter(
+            mobile_number=phone, status__in=["confirmed", "completed"]
+        ).exists():
+            return Response(
+                {
+                    "message": "Phone number already verified via previous booking",
+                    "verified": True,
+                }
+            )
+
         from .services.booking_otp_service import BookingOTPService
+
         try:
             BookingOTPService.send_booking_otp(phone)
-            return Response({"message": "OTP sent successfully"})
+            return Response({"message": "OTP sent successfully", "verified": False})
         except Exception as e:
             return Response({"error": str(e)}, status=500)
+
 
     @decorators.action(
         detail=False, methods=["post"], permission_classes=[permissions.AllowAny]
@@ -170,8 +219,9 @@ class BookingViewSet(viewsets.ModelViewSet):
         code = request.data.get("code")
         if not phone or not code:
             return Response({"error": "phone and code are required"}, status=400)
-        
+
         from .services.booking_otp_service import BookingOTPService
+
         if BookingOTPService.verify_booking_otp(phone, code):
             return Response({"message": "Phone verified successfully"})
         else:
@@ -186,24 +236,30 @@ class BookingViewSet(viewsets.ModelViewSet):
         Updates status to 'confirmed' and sends a confirmation email.
         """
         booking = self.get_object()
-        
+
         if booking.status != "pending":
-            return Response({"error": "Only pending bookings can be confirmed."}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response(
+                {"error": "Only pending bookings can be confirmed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         booking.payment_method = "on_arrival"
         booking.payment_status = "pending"
         booking.status = "confirmed"
         booking.save()
-        
+
         # Send confirmation email
         from .services.booking_email_service import BookingEmailService
+
         try:
             BookingEmailService.send_booking_confirmation(booking)
         except Exception as e:
             # Log error but don't fail the request
             print(f"Failed to send email: {e}")
-            
-        return Response({
-            "message": "Booking confirmed with Pay at Property option.",
-            "booking_id": booking.id
-        })
+
+        return Response(
+            {
+                "message": "Booking confirmed with Pay at Property option.",
+                "booking_id": booking.id,
+            }
+        )
