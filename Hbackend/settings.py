@@ -284,8 +284,8 @@ APPEND_SLASH = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Increase max upload size to avoid early rejection (actual limit handled by StorageSettings)
-DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100MB
 
 # Railway Proxy settings
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
