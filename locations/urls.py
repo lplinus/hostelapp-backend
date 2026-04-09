@@ -8,6 +8,7 @@ from .views import (
     CityHostelsAPIView,
     SearchHostelsAPIView,
     InnerSearchHostelsAPIView,
+    ForwardGeocodeAPIView,
 )
 
 router = DefaultRouter()
@@ -17,9 +18,12 @@ router.register("cities", CityViewSet, basename="city")
 router.register("areas", AreaViewSet, basename="area")
 
 urlpatterns = [
+    path("geocode/", ForwardGeocodeAPIView.as_view(), name="forward-geocode"),
     path("search/", SearchHostelsAPIView.as_view(), name="search-hostels"),
     path(
-        "inner-search/", InnerSearchHostelsAPIView.as_view(), name="inner-search-hostels"
+        "inner-search/",
+        InnerSearchHostelsAPIView.as_view(),
+        name="inner-search-hostels",
     ),
     path(
         "cities/<slug:slug>/hostels/", CityHostelsAPIView.as_view(), name="city-hostels"
