@@ -6,6 +6,7 @@ from Hbackend.base_models import SoftDeleteModel
 
 class RoomType(SoftDeleteModel):
     SHARING_CHOICES = [
+        (0, "Private Room"),
         (1, "Single Sharing"),
         (2, "Double Sharing"),
         (3, "Triple Sharing"),
