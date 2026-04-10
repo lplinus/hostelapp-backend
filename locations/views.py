@@ -228,10 +228,14 @@ class ForwardGeocodeAPIView(APIView):
         cleaned = re.sub(r"\([^)]*\)", "", cleaned)
 
         # Remove "Near ..." up to the next comma
-        cleaned = re.sub(r"(?i)\b(?:near|opp|opposite|beside|behind|next to)\s+[^,]+", "", cleaned)
+        cleaned = re.sub(
+            r"(?i)\b(?:near|opp|opposite|beside|behind|next to)\s+[^,]+", "", cleaned
+        )
 
         # Remove Plot/House/Door/H.No numbers
-        cleaned = re.sub(r"(?i)\b(?:plot|h\.?no|house|door|flat|room)\s*#?\s*[\d\-/]+", "", cleaned)
+        cleaned = re.sub(
+            r"(?i)\b(?:plot|h\.?no|house|door|flat|room)\s*#?\s*[\d\-/]+", "", cleaned
+        )
 
         # Remove standalone numbers with special chars (like "3-4-5/A")
         cleaned = re.sub(r"\b\d+[\-/]\d+[\-/\w]*\b", "", cleaned)

@@ -71,7 +71,13 @@ def search_hostels(query: str = "", budget: int = None, gender: str = ""):
     return qs.order_by("-rating_avg")
 
 
-def inner_search_hostels(query: str = "", city: str = "", hostel_type: str = "", room_type: str = "", sharing: str = ""):
+def inner_search_hostels(
+    query: str = "",
+    city: str = "",
+    hostel_type: str = "",
+    room_type: str = "",
+    sharing: str = "",
+):
     """
     Dedicated logic for inner hostel search (listing page).
     """
