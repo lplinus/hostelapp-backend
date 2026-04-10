@@ -72,6 +72,7 @@ class City(SoftDeleteModel):
     )
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    is_featured = models.BooleanField(default=False)
 
     class Meta:
         indexes = [

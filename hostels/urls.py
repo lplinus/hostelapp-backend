@@ -5,6 +5,8 @@ from .views import (
     HostelImageViewSet,
     HostelTypeImageViewSet,
     TypeHostelsAPIView,
+    TopRatedHostelsAPIView,
+    FeaturedHostelsAPIView,
 )
 
 router = DefaultRouter()
@@ -17,6 +19,8 @@ hostel_list = HostelViewSet.as_view({'get': 'list', 'post': 'create'})
 hostel_detail = HostelViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'})
 
 urlpatterns = [
+    path("top-rated/", TopRatedHostelsAPIView.as_view(), name="top-rated-hostels"),
+    path("featured/", FeaturedHostelsAPIView.as_view(), name="featured-hostels"),
     path("types/<str:type_slug>/hostels/",TypeHostelsAPIView.as_view(),name="type-hostels",),
     path("", include(router.urls)),
     
@@ -26,3 +30,4 @@ urlpatterns = [
     path("<slug:slug>/", hostel_detail, name="hostel-root-detail"),
     path("id/<int:id>/", hostel_detail, name="hostel-root-detail-id"),
 ]
+

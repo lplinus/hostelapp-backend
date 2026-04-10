@@ -1,8 +1,12 @@
 from django.db import models
 from locations.models import City, Area
 from accounts.models import User
-from Hbackend.utils import process_image_fields, delete_old_image_files, validate_image_size
-from Hbackend.imagekit_storage import ImageKitStorage   
+from Hbackend.utils import (
+    process_image_fields,
+    delete_old_image_files,
+    validate_image_size,
+)
+from Hbackend.imagekit_storage import ImageKitStorage
 from decimal import Decimal
 from django.core.validators import MinValueValidator, MaxValueValidator
 from Hbackend.base_models import SoftDeleteModel
@@ -34,7 +38,12 @@ class Hostel(SoftDeleteModel):
     meta_description = models.TextField(blank=True, null=True)
     meta_keywords = models.CharField(max_length=500, blank=True, null=True)
     canonical_url = models.URLField(blank=True, null=True)
-    og_image = models.ImageField(upload_to="seo/hostels/", null=True, blank=True, validators=[validate_image_size])
+    og_image = models.ImageField(
+        upload_to="seo/hostels/",
+        null=True,
+        blank=True,
+        validators=[validate_image_size],
+    )
     og_title = models.CharField(max_length=255, blank=True, null=True)
     og_description = models.TextField(blank=True, null=True)
     og_type = models.CharField(max_length=50, default="website")
@@ -98,7 +107,7 @@ class Hostel(SoftDeleteModel):
         max_digits=10, decimal_places=2, null=True, blank=True, editable=False
     )
     is_approved = models.BooleanField(default=False)
-    
+
     def update_price_from_rooms(self):
         """
         Updates the hostel's price based on room types.
@@ -106,7 +115,7 @@ class Hostel(SoftDeleteModel):
         """
         # We import here to avoid circular dependencies
         from rooms.models import RoomType
-        
+
         rooms = RoomType.objects.filter(hostel=self)
         if not rooms.exists():
             return
@@ -119,18 +128,20 @@ class Hostel(SoftDeleteModel):
 
         if selected_room:
             self.price = selected_room.base_price
-            
+
             # Daily price fallback (monthly / 30) consistent with frontend logic
             if selected_room.price_per_day:
                 self.price_per_day = selected_room.price_per_day
             elif selected_room.base_price:
-                self.price_per_day = (selected_room.base_price / Decimal("30")).quantize(Decimal("1."))
+                self.price_per_day = (
+                    selected_room.base_price / Decimal("30")
+                ).quantize(Decimal("1."))
             else:
                 self.price_per_day = None
 
             # Since the save() method also handles discounted pricing,
             # we must call super().save() or self.save() to trigger it.
-            self.save(update_fields=['price', 'price_per_day'])
+            self.save(update_fields=["price", "price_per_day"])
 
     def save(self, *args, **kwargs):
         delete_old_image_files(self, ["og_image"])
@@ -157,6 +168,14 @@ class Hostel(SoftDeleteModel):
             self.discounted_price_per_day = None
             self.discount_percentage = None
         super().save(*args, **kwargs)
+
+        # Auto-mark the city as featured when hostel is featured or top-rated
+        if (self.is_featured or self.is_toprated) and self.city_id:
+            from locations.models import City
+
+            City.objects.filter(id=self.city_id, is_featured=False).update(
+                is_featured=True
+            )
 
     @property
     def final_price(self):
@@ -201,7 +220,9 @@ class HostelTypeImage(SoftDeleteModel):
         unique=True,
     )
 
-    image = models.ImageField(upload_to="hostel-type-images/", validators=[validate_image_size])
+    image = models.ImageField(
+        upload_to="hostel-type-images/", validators=[validate_image_size]
+    )
     alt_text = models.CharField(
         max_length=255,
         default="Hostel type image",
@@ -219,15 +240,33 @@ class HostelTypeImage(SoftDeleteModel):
 class HostelImage(SoftDeleteModel):
     hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE, related_name="images")
     image = models.ImageField(upload_to="hostels/", validators=[validate_image_size])
-    image2 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
-    image3 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
-    image4 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
-    image5 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
-    image6 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
-    image7 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
-    image8 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
-    image9 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
-    image10 = models.ImageField(null=True, blank=True, upload_to="hostels/", validators=[validate_image_size])
+    image2 = models.ImageField(
+        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+    )
+    image3 = models.ImageField(
+        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+    )
+    image4 = models.ImageField(
+        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+    )
+    image5 = models.ImageField(
+        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+    )
+    image6 = models.ImageField(
+        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+    )
+    image7 = models.ImageField(
+        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+    )
+    image8 = models.ImageField(
+        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+    )
+    image9 = models.ImageField(
+        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+    )
+    image10 = models.ImageField(
+        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+    )
 
     alt_text = models.CharField(max_length=255)
     is_primary = models.BooleanField(default=False)
@@ -235,7 +274,18 @@ class HostelImage(SoftDeleteModel):
 
     def save(self, *args, **kwargs):
         # Delete old files before processing new ones to avoid duplicates
-        fields = ["image", "image2", "image3", "image4", "image5", "image6", "image7", "image8", "image9", "image10"]
+        fields = [
+            "image",
+            "image2",
+            "image3",
+            "image4",
+            "image5",
+            "image6",
+            "image7",
+            "image8",
+            "image9",
+            "image10",
+        ]
         delete_old_image_files(self, fields)
         # Convert all image fields to WebP on save
         process_image_fields(self, fields)
@@ -253,70 +303,74 @@ class DefaultHostelImage(models.Model):
     """
 
     image1 = models.ImageField(
-        upload_to="hostels/defaults/", verbose_name="Default Image 1", null=True, blank=True, validators=[validate_image_size]
+        upload_to="hostels/defaults/",
+        verbose_name="Default Image 1",
+        null=True,
+        blank=True,
+        validators=[validate_image_size],
     )
     image2 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 2",
         null=True,
         blank=True,
-        validators=[validate_image_size]
+        validators=[validate_image_size],
     )
     image3 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 3",
         null=True,
         blank=True,
-        validators=[validate_image_size]
+        validators=[validate_image_size],
     )
     image4 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 4",
         null=True,
         blank=True,
-        validators=[validate_image_size]
+        validators=[validate_image_size],
     )
     image5 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 5",
         null=True,
         blank=True,
-        validators=[validate_image_size]
+        validators=[validate_image_size],
     )
     image6 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 6",
         null=True,
         blank=True,
-        validators=[validate_image_size]
+        validators=[validate_image_size],
     )
     image7 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 7",
         null=True,
         blank=True,
-        validators=[validate_image_size]
+        validators=[validate_image_size],
     )
     image8 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 8",
         null=True,
         blank=True,
-        validators=[validate_image_size]
+        validators=[validate_image_size],
     )
     image9 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 9",
         null=True,
         blank=True,
-        validators=[validate_image_size]
+        validators=[validate_image_size],
     )
     image10 = models.ImageField(
         upload_to="hostels/defaults/",
         verbose_name="Default Image 10",
         null=True,
         blank=True,
-        validators=[validate_image_size]
+        validators=[validate_image_size],
     )
 
     alt_text = models.CharField(
@@ -332,13 +386,25 @@ class DefaultHostelImage(models.Model):
     def save(self, *args, **kwargs):
         # Singleton: ensure only one row
         self.pk = 1
-        fields = ["image1", "image2", "image3", "image4", "image5", "image6", "image7", "image8", "image9", "image10"]
+        fields = [
+            "image1",
+            "image2",
+            "image3",
+            "image4",
+            "image5",
+            "image6",
+            "image7",
+            "image8",
+            "image9",
+            "image10",
+        ]
         from Hbackend.utils import process_image_fields, delete_old_image_files
+
         delete_old_image_files(self, fields)
         process_image_fields(self, fields)
-        
+
         # Pop force_insert to avoid IntegrityError in admin if pk=1 already exists
-        kwargs.pop('force_insert', None)
+        kwargs.pop("force_insert", None)
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
@@ -349,7 +415,9 @@ class DefaultHostelImage(models.Model):
 
 
 class Landmark(SoftDeleteModel):
-    hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE, related_name="landmarks")
+    hostel = models.ForeignKey(
+        Hostel, on_delete=models.CASCADE, related_name="landmarks"
+    )
     name = models.CharField(max_length=255)
     distance = models.CharField(max_length=100, help_text="e.g., 500m or 1.2km")
     is_popular = models.BooleanField(default=False)

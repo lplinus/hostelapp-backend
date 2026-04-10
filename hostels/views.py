@@ -3,6 +3,7 @@ Views for the Hostels application.
 This module handles the CRUD operations for hostels, including image management,
 owner-specific dashboards, and public listing views.
 """
+
 from rest_framework import viewsets, permissions, decorators, status
 from rest_framework.exceptions import PermissionDenied
 from .models import Hostel, HostelImage, HostelTypeImage
@@ -24,6 +25,7 @@ class IsHostelOwner(permissions.BasePermission):
     can perform write operations (update, delete).
     Read operations are allowed for everyone (SAFE_METHODS).
     """
+
     """Only allow the hostel owner to modify it."""
 
     def has_object_permission(self, request, view, obj):
@@ -38,6 +40,7 @@ class HostelViewSet(viewsets.ModelViewSet):
     Provides standard CRUD operations and custom actions for hostel owners.
     Uses 'slug' as the primary lookup field for public access.
     """
+
     queryset = (
         Hostel.objects.select_related("city", "area", "owner")
         .prefetch_related("amenities", "images", "room_types")
@@ -53,10 +56,10 @@ class HostelViewSet(viewsets.ModelViewSet):
         This allows flexible API calls from both owner dashboards (by ID) and public pages (by slug).
         """
         queryset = self.filter_queryset(self.get_queryset())
-        
+
         # Check if we have 'id' or 'hostel_id' in kwargs instead of slug
-        id_val = self.kwargs.get('id') or self.kwargs.get('hostel_id')
-        
+        id_val = self.kwargs.get("id") or self.kwargs.get("hostel_id")
+
         if id_val:
             obj = get_object_or_404(queryset, id=id_val)
         else:
@@ -64,7 +67,7 @@ class HostelViewSet(viewsets.ModelViewSet):
             lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
             filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
             obj = get_object_or_404(queryset, **filter_kwargs)
-            
+
         self.check_object_permissions(self.request, obj)
         return obj
 
@@ -194,6 +197,7 @@ class HostelImageViewSet(viewsets.ModelViewSet):
     ViewSet for managing images associated with hostels.
     Ensures that only the hostel owner can upload or delete images for their hostel.
     """
+
     queryset = HostelImage.objects.select_related("hostel").all()
     serializer_class = HostelImageSerializer
     permission_classes = [permissions.AllowAny]
@@ -234,6 +238,7 @@ class TypeHostelsAPIView(APIView):
     API View to list hostels filtered by their type (e.g., boys, girls, co-ed).
     If type_slug is 'all', it returns all approved and active hostels.
     """
+
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, type_slug, *args, **kwargs):
@@ -270,3 +275,49 @@ class TypeHostelsAPIView(APIView):
                 "results": serializer.data,
             }
         )
+
+
+class TopRatedHostelsAPIView(APIView):
+    """
+    API View to list top-rated hostels.
+    Returns only active, approved hostels marked as top-rated.
+    Endpoint: GET /api/hostels/top-rated/
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        hostels = (
+            Hostel.objects.filter(
+                is_active=True, is_approved=True, is_toprated=True
+            )
+            .select_related("city", "area", "owner")
+            .prefetch_related("amenities", "images", "room_types")
+        )
+        serializer = HostelSerializer(
+            hostels, many=True, context={"request": request}
+        )
+        return Response(serializer.data)
+
+
+class FeaturedHostelsAPIView(APIView):
+    """
+    API View to list featured hostels.
+    Returns only active, approved hostels marked as featured.
+    Endpoint: GET /api/hostels/featured/
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        hostels = (
+            Hostel.objects.filter(
+                is_active=True, is_approved=True, is_featured=True
+            )
+            .select_related("city", "area", "owner")
+            .prefetch_related("amenities", "images", "room_types")
+        )
+        serializer = HostelSerializer(
+            hostels, many=True, context={"request": request}
+        )
+        return Response(serializer.data)
