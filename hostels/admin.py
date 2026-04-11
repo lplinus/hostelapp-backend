@@ -66,8 +66,8 @@ class HostelTypeImageAdmin(SoftDeleteAdmin):
 
 @admin.register(HostelImage)
 class HostelImageAdmin(SoftDeleteAdmin):
-    list_display = ("hostel", "alt_text", "is_primary", "order")
-    list_filter = ("hostel", "is_primary")
+    list_display = ("hostel", "alt_text", "is_primary", "order", "provider")
+    list_filter = ("hostel", "is_primary", "provider")
 
 
 @admin.register(DefaultHostelImage)

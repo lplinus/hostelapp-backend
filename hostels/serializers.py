@@ -50,6 +50,7 @@ class HostelImageSerializer(serializers.ModelSerializer):
             "alt_text",
             "is_primary",
             "order",
+            "provider",
         ]
 
     def validate_image(self, value):

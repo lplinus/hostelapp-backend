@@ -4,7 +4,27 @@ from .models import TermsAndConditions, PrivacyPolicy, FAQCategory, FAQ, Storage
 
 @admin.register(StorageSettings)
 class StorageSettingsAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "max_image_size_mb")
+    list_display = ("__str__", "image_storage_provider", "max_image_size_mb")
+
+    fieldsets = (
+        (
+            "🗄️ Image Storage Provider",
+            {
+                "fields": ("image_storage_provider",),
+                "description": (
+                    "Select which cloud service handles hostel image uploads. "
+                    "The other service automatically acts as a fallback if the primary fails."
+                ),
+            },
+        ),
+        (
+            "📁 Upload Size Limit",
+            {
+                "fields": ("max_image_size_mb",),
+                "description": "Set the maximum allowed size per image upload (in MB).",
+            },
+        ),
+    )
 
     def has_add_permission(self, request):
         if self.model.objects.exists():
@@ -13,6 +33,7 @@ class StorageSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
 
 
 

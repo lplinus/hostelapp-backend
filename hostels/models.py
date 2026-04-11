@@ -40,6 +40,7 @@ class Hostel(SoftDeleteModel):
     canonical_url = models.URLField(blank=True, null=True)
     og_image = models.ImageField(
         upload_to="seo/hostels/",
+        max_length=500,
         null=True,
         blank=True,
         validators=[validate_image_size],
@@ -221,7 +222,9 @@ class HostelTypeImage(SoftDeleteModel):
     )
 
     image = models.ImageField(
-        upload_to="hostel-type-images/", validators=[validate_image_size]
+        upload_to="hostel-type-images/",
+        max_length=500,
+        validators=[validate_image_size],
     )
     alt_text = models.CharField(
         max_length=255,
@@ -239,41 +242,51 @@ class HostelTypeImage(SoftDeleteModel):
 
 class HostelImage(SoftDeleteModel):
     hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE, related_name="images")
-    image = models.ImageField(upload_to="hostels/", validators=[validate_image_size])
+    image = models.ImageField(
+        upload_to="hostels/", max_length=500, validators=[validate_image_size]
+    )
     image2 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
     )
     image3 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
     )
     image4 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
     )
     image5 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
     )
     image6 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
     )
     image7 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
     )
     image8 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
     )
     image9 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
     )
     image10 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", validators=[validate_image_size]
+        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
     )
 
     alt_text = models.CharField(max_length=255)
     is_primary = models.BooleanField(default=False)
     order = models.IntegerField(default=0)
+    provider = models.CharField(
+        max_length=20,
+        choices=[("imagekit", "ImageKit"), ("cloudinary", "Cloudinary")],
+        default="imagekit",
+    )
 
     def save(self, *args, **kwargs):
-        # Delete old files before processing new ones to avoid duplicates
+        # Handle uploads through the service to support fallback in both API and Admin
+        from .services import ImageUploadService
+        from cms.models import StorageSettings
+
         fields = [
             "image",
             "image2",
@@ -287,8 +300,29 @@ class HostelImage(SoftDeleteModel):
             "image10",
         ]
         delete_old_image_files(self, fields)
-        # Convert all image fields to WebP on save
-        process_image_fields(self, fields)
+
+        # Set provider from admin-configured active provider before upload loop
+        self.provider = StorageSettings.get_active_provider()
+
+        service = ImageUploadService()
+        for field_name in fields:
+            field_file = getattr(self, field_name)
+            # Process only if it's a new file and not already a URL
+            if field_file and hasattr(field_file, "file") and not str(field_file).startswith("http"):
+                try:
+                    # Folder naming: hostels/<id>
+                    folder = f"hostels/{self.hostel_id}"
+                    result = service.upload_image(field_file, field_file.name, folder=folder)
+                    setattr(self, field_name, result["url"])
+                    # Update provider from actual result (may differ if fallback triggered)
+                    self.provider = result["provider"]
+                except Exception:
+                    # If the service fails completely, we still call super().save()
+                    # which will use the default storage backend as a last resort.
+                    pass
+
+        # We skip process_image_fields because our service handles the upload,
+        # and URLs shouldn't be processed for WebP conversion again.
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -304,6 +338,7 @@ class DefaultHostelImage(models.Model):
 
     image1 = models.ImageField(
         upload_to="hostels/defaults/",
+        max_length=500,
         verbose_name="Default Image 1",
         null=True,
         blank=True,
@@ -311,6 +346,7 @@ class DefaultHostelImage(models.Model):
     )
     image2 = models.ImageField(
         upload_to="hostels/defaults/",
+        max_length=500,
         verbose_name="Default Image 2",
         null=True,
         blank=True,
@@ -318,6 +354,7 @@ class DefaultHostelImage(models.Model):
     )
     image3 = models.ImageField(
         upload_to="hostels/defaults/",
+        max_length=500,
         verbose_name="Default Image 3",
         null=True,
         blank=True,
@@ -325,6 +362,7 @@ class DefaultHostelImage(models.Model):
     )
     image4 = models.ImageField(
         upload_to="hostels/defaults/",
+        max_length=500,
         verbose_name="Default Image 4",
         null=True,
         blank=True,
@@ -332,6 +370,7 @@ class DefaultHostelImage(models.Model):
     )
     image5 = models.ImageField(
         upload_to="hostels/defaults/",
+        max_length=500,
         verbose_name="Default Image 5",
         null=True,
         blank=True,
@@ -339,6 +378,7 @@ class DefaultHostelImage(models.Model):
     )
     image6 = models.ImageField(
         upload_to="hostels/defaults/",
+        max_length=500,
         verbose_name="Default Image 6",
         null=True,
         blank=True,
@@ -346,6 +386,7 @@ class DefaultHostelImage(models.Model):
     )
     image7 = models.ImageField(
         upload_to="hostels/defaults/",
+        max_length=500,
         verbose_name="Default Image 7",
         null=True,
         blank=True,
@@ -353,6 +394,7 @@ class DefaultHostelImage(models.Model):
     )
     image8 = models.ImageField(
         upload_to="hostels/defaults/",
+        max_length=500,
         verbose_name="Default Image 8",
         null=True,
         blank=True,
@@ -360,6 +402,7 @@ class DefaultHostelImage(models.Model):
     )
     image9 = models.ImageField(
         upload_to="hostels/defaults/",
+        max_length=500,
         verbose_name="Default Image 9",
         null=True,
         blank=True,
@@ -367,6 +410,7 @@ class DefaultHostelImage(models.Model):
     )
     image10 = models.ImageField(
         upload_to="hostels/defaults/",
+        max_length=500,
         verbose_name="Default Image 10",
         null=True,
         blank=True,

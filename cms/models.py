@@ -123,9 +123,27 @@ class FAQ(models.Model):
 
 
 class StorageSettings(models.Model):
+    PROVIDER_IMAGEKIT = "imagekit"
+    PROVIDER_CLOUDINARY = "cloudinary"
+
+    PROVIDER_CHOICES = [
+        (PROVIDER_IMAGEKIT, "ImageKit (Primary) + Cloudinary (Fallback)"),
+        (PROVIDER_CLOUDINARY, "Cloudinary (Primary) + ImageKit (Fallback)"),
+    ]
+
     max_image_size_mb = models.PositiveIntegerField(
-        default=10, 
-        help_text="Global maximum size for image uploads in MB."
+        default=10,
+        help_text="Global maximum size for image uploads in MB.",
+    )
+
+    image_storage_provider = models.CharField(
+        max_length=20,
+        choices=PROVIDER_CHOICES,
+        default=PROVIDER_IMAGEKIT,
+        help_text=(
+            "Select the primary image storage service for hostel images. "
+            "The other service acts as automatic fallback if the primary fails."
+        ),
     )
 
     class Meta:
@@ -133,8 +151,25 @@ class StorageSettings(models.Model):
         verbose_name_plural = "Storage Settings"
 
     def save(self, *args, **kwargs):
+        # Singleton — always pk=1
         self.pk = 1
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Global Storage Settings ({self.max_image_size_mb}MB)"
+        return (
+            f"Storage Settings | Provider: {self.get_image_storage_provider_display()} "
+            f"| Max Size: {self.max_image_size_mb} MB"
+        )
+
+    @classmethod
+    def get_active_provider(cls):
+        """
+        Returns the active image storage provider string ('imagekit' or 'cloudinary').
+        Falls back to the Django settings value if the DB row doesn't exist yet.
+        """
+        try:
+            obj = cls.objects.get(pk=1)
+            return obj.image_storage_provider
+        except cls.DoesNotExist:
+            from django.conf import settings
+            return getattr(settings, "IMAGE_STORAGE_PROVIDER", cls.PROVIDER_IMAGEKIT)

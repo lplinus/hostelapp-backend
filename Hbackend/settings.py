@@ -17,6 +17,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 import mimetypes
 import dj_database_url
+import cloudinary
 import os
 
 
@@ -184,9 +185,23 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Enable WhiteNoise's GZip compression and unique names for static files
+# ========================
+# IMAGE STORAGE PROVIDER
+# ========================
+# Set to 'imagekit' to use ImageKit as primary (Cloudinary as fallback)
+# Set to 'cloudinary' to use Cloudinary as primary (ImageKit as fallback)
+IMAGE_STORAGE_PROVIDER = config("IMAGE_STORAGE_PROVIDER", default="imagekit")
+
+_STORAGE_BACKENDS = {
+    "imagekit": "Hbackend.imagekit_storage.ImageKitStorage",
+    "cloudinary": "Hbackend.cloudinary_storage.CloudinaryStorage",
+}
+
 STORAGES = {
     "default": {
-        "BACKEND": "Hbackend.imagekit_storage.ImageKitStorage",
+        "BACKEND": _STORAGE_BACKENDS.get(
+            IMAGE_STORAGE_PROVIDER, _STORAGE_BACKENDS["imagekit"]
+        ),
     },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
@@ -351,6 +366,9 @@ IMAGEKIT_PUBLIC_KEY = config("IMAGEKIT_PUBLIC_KEY")
 IMAGEKIT_PRIVATE_KEY = config("IMAGEKIT_PRIVATE_KEY")
 IMAGEKIT_URL_ENDPOINT = config("IMAGEKIT_URL_ENDPOINT")
 
+# Testing: Set to True to force fallback to Cloudinary
+FORCE_IMAGEKIT_FAILURE = False
+
 # ========================
 # REVIEW SETTINGS
 # ========================
@@ -358,3 +376,17 @@ IMAGEKIT_URL_ENDPOINT = config("IMAGEKIT_URL_ENDPOINT")
 REVIEWS_AUTO_APPROVE = config("REVIEWS_AUTO_APPROVE", default=False, cast=bool)
 # Timer for review publication delay (in seconds).
 REVIEWS_PUBLISH_DELAY = config("REVIEWS_PUBLISH_DELAY", default=0, cast=int)
+
+
+# ========================
+# CLOUDINARY SETUP
+# ========================
+CLOUDINARY_CLOUD_NAME = config("CLOUDINARY_CLOUD_NAME", default="")
+CLOUDINARY_API_KEY = config("CLOUDINARY_API_KEY", default="")
+CLOUDINARY_API_SECRET = config("CLOUDINARY_API_SECRET", default="")
+
+cloudinary.config(
+    cloud_name=CLOUDINARY_CLOUD_NAME,
+    api_key=CLOUDINARY_API_KEY,
+    api_secret=CLOUDINARY_API_SECRET,
+)
