@@ -19,7 +19,7 @@ class Hostel(SoftDeleteModel):
         BOYS = "boys", "Boys Hostel"
         GIRLS = "girls", "Girls Hostel"
         CO_LIVING = "co_living", "Co-Living Hostel"
-        WORKING_PROFESSIONAL = "working_professional", "Working Professionals Hostel"
+        WORKING_PROFESSIONAL = "working_professional", "WorkingProfessionalsHostel"
         STUDENT = "student", "Student Hostel"
         LUXURY = "luxury", "Luxury Hostel"
         BUDGET = "budget", "Budget Hostel"
