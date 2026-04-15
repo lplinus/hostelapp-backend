@@ -85,6 +85,7 @@ INSTALLED_APPS = [
     "marketplace",
     "orders",
     "vendors",
+    "hostelservices",
     "django_cleanup.apps.CleanupConfig",
 ]
 

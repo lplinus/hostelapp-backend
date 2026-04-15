@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Hostel, HostelImage, DefaultHostelImage, HostelTypeImage, Landmark
+from .models import Hostel, HostelImage, DefaultHostelImage, HostelTypeImage, Landmark, ExtraCharge
 from amenities.serializers import AmenitySerializer
 
 
@@ -7,6 +7,12 @@ class LandmarkSerializer(serializers.ModelSerializer):
     class Meta:
         model = Landmark
         fields = ["id", "name", "distance", "is_popular"]
+
+
+class ExtraChargeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExtraCharge
+        fields = ["id", "charge_type", "amount", "description"]
 
 
 from amenities.models import Amenity
@@ -124,6 +130,7 @@ class HostelSerializer(serializers.ModelSerializer):
     room_types = RoomTypeSerializer(many=True, read_only=True)
     reviews = serializers.SerializerMethodField()
     landmarks = LandmarkSerializer(many=True, read_only=True)
+    extra_charges = ExtraChargeSerializer(many=True, read_only=True)
     default_images = serializers.SerializerMethodField()
     final_price = serializers.SerializerMethodField()
     rating_count = serializers.SerializerMethodField()
@@ -180,6 +187,7 @@ class HostelSerializer(serializers.ModelSerializer):
             "default_images",
             "reviews",
             "landmarks",
+            "extra_charges",
             "created_at",
         ]
 
@@ -220,6 +228,7 @@ class HostelWriteSerializer(serializers.ModelSerializer):
         queryset=Amenity.objects.all(),
         required=False,
     )
+    extra_charges = ExtraChargeSerializer(many=True, required=False)
 
     class Meta:
         model = Hostel
@@ -244,8 +253,35 @@ class HostelWriteSerializer(serializers.ModelSerializer):
             "check_out_time",
             "is_active",
             "amenities",
+            "extra_charges",
         ]
         read_only_fields = ["id"]
+
+    def create(self, validated_data):
+        amenities = validated_data.pop("amenities", [])
+        extra_charges_data = validated_data.pop("extra_charges", [])
+        hostel = super().create(validated_data)
+        if amenities:
+            hostel.amenities.set(amenities)
+        for charge_data in extra_charges_data:
+            from .models import ExtraCharge
+            ExtraCharge.objects.create(hostel=hostel, **charge_data)
+        return hostel
+
+    def update(self, instance, validated_data):
+        amenities = validated_data.pop("amenities", None)
+        extra_charges_data = validated_data.pop("extra_charges", None)
+        instance = super().update(instance, validated_data)
+
+        if amenities is not None:
+            instance.amenities.set(amenities)
+
+        if extra_charges_data is not None:
+            from .models import ExtraCharge
+            instance.extra_charges.all().delete()
+            for charge_data in extra_charges_data:
+                ExtraCharge.objects.create(hostel=instance, **charge_data)
+        return instance
 
     def validate_short_description(self, value):
         if value:

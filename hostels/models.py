@@ -468,3 +468,28 @@ class Landmark(SoftDeleteModel):
 
     def __str__(self):
         return f"{self.name} ({self.distance}) - {self.hostel.name}"
+
+
+class ExtraCharge(SoftDeleteModel):
+    hostel = models.ForeignKey(
+        Hostel, on_delete=models.CASCADE, related_name="extra_charges"
+    )
+
+    class ChargeType(models.TextChoices):
+        ELECTRICITY = "electricity", "Electricity"
+        WATER = "water", "Water"
+        MAINTENANCE = "maintenance", "Maintenance"
+        WIFI = "wifi", "WiFi"
+        LAUNDRY = "laundry", "Laundry"
+        OTHER = "other", "Other"
+
+    charge_type = models.CharField(
+        max_length=50,
+        choices=ChargeType.choices,
+        default=ChargeType.ELECTRICITY,
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    description = models.CharField(max_length=255, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.get_charge_type_display()} - {self.amount} for {self.hostel.name}"

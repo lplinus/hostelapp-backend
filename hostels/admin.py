@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Hostel, HostelImage, DefaultHostelImage, HostelTypeImage, Landmark
+from .models import Hostel, HostelImage, DefaultHostelImage, HostelTypeImage, Landmark, ExtraCharge
 from Hbackend.base_models import SoftDeleteAdmin
 
 
@@ -13,6 +13,10 @@ class ReviewInline(admin.TabularInline):
 
 class LandmarkInline(admin.TabularInline):
     model = Landmark
+    extra = 1
+
+class ExtraChargeInline(admin.TabularInline):
+    model = ExtraCharge
     extra = 1
 
 
@@ -42,7 +46,7 @@ class HostelAdmin(SoftDeleteAdmin):
         "is_verified",
         "is_approved",
     )
-    inlines = [LandmarkInline]
+    inlines = [LandmarkInline, ExtraChargeInline]
 
 
 @admin.register(HostelTypeImage)
