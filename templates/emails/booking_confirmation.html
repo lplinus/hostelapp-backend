@@ -176,6 +176,42 @@
                         </td>
                     </tr>
 
+                    {% if extra_charges %}
+                    <tr>
+                        <td style="padding: 0 40px 20px 40px;">
+                            <table border="0" cellpadding="16" cellspacing="0" width="100%"
+                                style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;">
+                                <tr>
+                                    <td>
+                                        <p style="color: #92400e; font-family: Arial, sans-serif; font-size: 11px; text-transform: uppercase; margin: 0 0 12px 0; font-weight: bold;">
+                                            Extra Charges (billed separately)</p>
+                                        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                            {% for charge in extra_charges %}
+                                            <tr>
+                                                <td style="padding: 6px 0; {% if not forloop.last %}border-bottom: 1px solid #fde68a;{% endif %}">
+                                                    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                                        <tr>
+                                                            <td style="color: #1e293b; font-family: Arial, sans-serif; font-size: 14px; font-weight: 600;">
+                                                                {{ charge.get_charge_type_display }}
+                                                                {% if charge.description %}
+                                                                <br><span style="color: #94a3b8; font-size: 11px; font-weight: 400;">{{ charge.description }}</span>
+                                                                {% endif %}
+                                                            </td>
+                                                            <td align="right" style="color: #1e293b; font-family: Arial, sans-serif; font-size: 14px; font-weight: 700; white-space: nowrap;">
+                                                                &#8377;{{ charge.amount }}/mo</td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    {% endif %}
+
                     <tr>
                         <td align="center" style="padding: 10px 40px 40px 40px;">
                             <p

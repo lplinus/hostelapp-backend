@@ -28,6 +28,15 @@ class BookingEmailService:
             booking_id_short = str(booking.id)[:8].upper()
             display_id = f"STN-{booking_id_short}"
 
+            # Build extra charges text for QR
+            extra_charges = hostel.extra_charges.all()
+            extra_charges_lines = ""
+            for ec in extra_charges:
+                line = f"\n{ec.get_charge_type_display()}: ₹{ec.amount}"
+                if ec.description:
+                    line += f" ({ec.description})"
+                extra_charges_lines += line
+
             qr_data = (
                 f"BOOKING:{display_id}\n"
                 f"Name: {booking.guest_name or 'Guest'}\n"
@@ -37,6 +46,7 @@ class BookingEmailService:
                 f"Check-out: {booking.check_out}\n"
                 f"Payment Method: {booking.get_payment_method_display()}\n"
                 f"Payment ID: {payment_id or 'N/A'}"
+                f"{extra_charges_lines}"
             )
 
             context = {
@@ -53,6 +63,7 @@ class BookingEmailService:
                 "check_out": booking.check_out,
                 "payment_id": payment_id,
                 "payment_method": booking.get_payment_method_display(),
+                "extra_charges": extra_charges,
             }
 
             subject = f"Booking Confirmed - {hostel.name}"
