@@ -12,7 +12,7 @@ from django.db.models import Q
 from hostels.models import Hostel
 from .query_parser import parse_query
 from .context_builder import build_context
-from .ai_client import call_openrouter, AIClientError
+from .ai_client import call_gemini_ai, AIClientError
 
 logger = logging.getLogger("ai.service")
 
@@ -116,7 +116,7 @@ class AIChatService:
             system_prompt = SYSTEM_PROMPT_TEMPLATE.format(context=context)
 
             # ── Step 6: Call AI ───────────────────────────────────────────
-            reply = call_openrouter(system_prompt, user_message)
+            reply = call_gemini_ai(system_prompt, user_message)
 
             return {
                 "reply": reply,

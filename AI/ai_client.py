@@ -1,30 +1,29 @@
 """
-AI Client — Handles all communication with OpenRouter API.
+AI Client — Handles all communication with Google Gemini API.
 
-Encapsulates retry logic, fallback models, timeout handling,
-and structured logging for production debugging.
+Uses the new `google.genai` SDK (replaces deprecated `google.generativeai`).
+Encapsulates retry logic, fallback models, and structured logging.
 """
 
 import time
 import logging
-import requests as http_requests
+from google import genai
+from google.genai import types
 from django.conf import settings
 
 logger = logging.getLogger("ai.client")
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-
 # (model_id, max_retries) — ordered by preference
+# Primary: Gemini 2.5 Flash Lite | Fallback: Gemini 2.5 Flash
 MODEL_PIPELINE = [
-    ("openrouter/free", 3),
-    ("meta-llama/llama-3.3-70b-instruct:free", 2),
+    ("gemini-2.5-flash-lite", 3),
+    ("gemini-2.5-flash", 2),
 ]
 
-DEFAULT_MAX_TOKENS = 350
+DEFAULT_MAX_TOKENS = 512
 DEFAULT_TEMPERATURE = 0.7
-REQUEST_TIMEOUT = 30  # seconds
 
 
 class AIClientError(Exception):
@@ -32,9 +31,43 @@ class AIClientError(Exception):
     pass
 
 
-def call_openrouter(system_prompt: str, user_message: str) -> str:
+def _extract_reply(response) -> str | None:
     """
-    Send a chat completion request to OpenRouter with retry + fallback.
+    Safely extract text from a Gemini response.
+    """
+    try:
+        # response.text is the simplest accessor in google.genai
+        if response and response.text:
+            return response.text.strip()
+
+        # Fallback: check candidates manually
+        if response and response.candidates:
+            candidate = response.candidates[0]
+
+            # Check finish reason for safety blocks
+            finish_reason = getattr(candidate, "finish_reason", None)
+            if finish_reason and str(finish_reason).upper() == "SAFETY":
+                logger.warning("⚠️ Response blocked by safety filters.")
+                return None
+
+            # Try extracting from parts
+            content = getattr(candidate, "content", None)
+            if content and content.parts:
+                text = "".join(
+                    part.text for part in content.parts
+                    if hasattr(part, "text") and part.text
+                )
+                return text.strip() if text.strip() else None
+
+        return None
+    except (ValueError, AttributeError, IndexError) as e:
+        logger.warning(f"⚠️ Failed to extract reply: {e}")
+        return None
+
+
+def call_gemini_ai(system_prompt: str, user_message: str) -> str:
+    """
+    Send a chat completion request to Google Gemini with retry + fallback.
 
     Args:
         system_prompt: The system instruction (compact context included)
@@ -46,104 +79,59 @@ def call_openrouter(system_prompt: str, user_message: str) -> str:
     Raises:
         AIClientError: If all models and retries are exhausted
     """
-    api_key = settings.OPENROUTER_API_KEY
+    api_key = settings.GOOGLE_API_KEY
     if not api_key:
-        raise AIClientError("OPENROUTER_API_KEY is not configured in settings.")
+        raise AIClientError("GOOGLE_API_KEY is not configured in settings.")
+
+    # Create a client instance with the API key
+    client = genai.Client(api_key=api_key)
 
     # Log payload size for debugging
     total_prompt_chars = len(system_prompt) + len(user_message)
-    logger.info(f"📤 Prompt size: {total_prompt_chars} chars (~{total_prompt_chars // 4} tokens)")
+    logger.info(f"📤 Prompt size: {total_prompt_chars} chars")
 
     last_error = None
 
     for model_name, max_retries in MODEL_PIPELINE:
         for attempt in range(1, max_retries + 1):
             try:
-                logger.info(f"🤖 Trying {model_name} (attempt {attempt}/{max_retries})")
+                logger.info(f"🤖 Trying Gemini {model_name} (attempt {attempt}/{max_retries})")
 
-                response = http_requests.post(
-                    OPENROUTER_URL,
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://hostelin.online",
-                        "X-Title": "Hostel In AI Assistant",
-                    },
-                    json={
-                        "model": model_name,
-                        "messages": [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_message},
-                        ],
-                        "max_tokens": DEFAULT_MAX_TOKENS,
-                        "temperature": DEFAULT_TEMPERATURE,
-                    },
-                    timeout=REQUEST_TIMEOUT,
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=user_message,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        max_output_tokens=DEFAULT_MAX_TOKENS,
+                        temperature=DEFAULT_TEMPERATURE,
+                    ),
                 )
 
-                # ── Log raw response status ──────────────────────────────
-                logger.info(f"📥 Response status: {response.status_code}")
+                # Safely extract reply text
+                reply = _extract_reply(response)
 
-                # ── Check HTTP-level errors ───────────────────────────────
-                if response.status_code == 429:
-                    last_error = "Rate limited"
-                    logger.warning(f"⚠️ {model_name}: Rate limited. Waiting before retry...")
-                    time.sleep(2 * attempt)  # Exponential backoff
-                    continue
-
-                if response.status_code >= 500:
-                    last_error = f"Server error: {response.status_code}"
-                    logger.warning(f"⚠️ {model_name}: Server error {response.status_code}")
-                    time.sleep(1)
-                    continue
-
-                if response.status_code != 200:
-                    last_error = f"HTTP {response.status_code}: {response.text[:200]}"
+                if reply:
+                    logger.info(f"✅ Success with {model_name} ({len(reply)} chars)")
+                    return reply
+                else:
+                    last_error = "Empty or blocked response from Gemini"
                     logger.warning(f"⚠️ {model_name}: {last_error}")
-                    continue
-
-                # ── Parse JSON ────────────────────────────────────────────
-                data = response.json()
-
-                if "error" in data:
-                    last_error = data["error"].get("message", str(data["error"]))
-                    logger.warning(f"⚠️ {model_name}: API error — {last_error}")
                     time.sleep(1)
                     continue
-
-                # ── Extract reply ─────────────────────────────────────────
-                reply = (
-                    data.get("choices", [{}])[0]
-                    .get("message", {})
-                    .get("content", "")
-                    .strip()
-                )
-
-                if not reply:
-                    last_error = "Empty response"
-                    logger.warning(f"⚠️ {model_name}: Empty response, retrying...")
-                    time.sleep(1)
-                    continue
-
-                logger.info(f"✅ Success with {model_name} ({len(reply)} chars)")
-                return reply
-
-            except http_requests.exceptions.Timeout:
-                last_error = f"Timeout after {REQUEST_TIMEOUT}s"
-                logger.warning(f"⚠️ {model_name}: {last_error}")
-                continue
-
-            except http_requests.exceptions.ConnectionError as e:
-                last_error = f"Connection error: {e}"
-                logger.warning(f"⚠️ {model_name}: {last_error}")
-                time.sleep(1)
-                continue
 
             except Exception as e:
                 last_error = str(e)
-                logger.error(f"❌ {model_name}: Unexpected error — {e}")
+                logger.warning(f"⚠️ {model_name}: Error — {last_error}")
+
+                # If it's a safety/blocked error, skip remaining retries for this model
+                if "block" in last_error.lower() or "safety" in last_error.lower():
+                    logger.error(f"❌ {model_name}: Content blocked by safety filters.")
+                    break
+
+                time.sleep(1 * attempt)  # Simple backoff
                 continue
 
     # All models exhausted
-    logger.error(f"❌ All AI models failed. Last error: {last_error}")
-    raise AIClientError(f"All models failed. Last error: {last_error}")
+    logger.error(f"❌ All Gemini models failed. Last error: {last_error}")
+    raise AIClientError(f"All Gemini models failed. Last error: {last_error}")
+
