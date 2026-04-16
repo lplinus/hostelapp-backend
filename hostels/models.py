@@ -31,6 +31,19 @@ class Hostel(SoftDeleteModel):
         default=HostelType.BOYS,
         db_index=True,
     )
+
+    class SuitableFor(models.TextChoices):
+        STUDENT = "student", "Student"
+        JOB_HOLDER = "job_holder", "Job Holder"
+        WORKING_PROFESSIONAL = "working_professional", "Working Professional"
+        BOTH = "both", "Both (Student & Professional)"
+        ANYONE = "anyone", "Anyone"
+
+    suitable_for = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Selected suitable categories (student, job_holder, etc.)",
+    )
     slug = models.SlugField(unique=True)
 
     # SEO Fields
