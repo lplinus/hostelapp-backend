@@ -397,3 +397,40 @@ cloudinary.config(
 # AI Settings
 GOOGLE_API_KEY = config("GOOGLE_API_KEY", default="")
 OPENROUTER_API_KEY = config("OPENROUTER_API_KEY", default="")
+
+# ========================
+# AI LOGGING
+# ========================
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "ai_formatter": {
+            "format": "[{asctime}] {levelname} {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "ai_formatter",
+        },
+    },
+    "loggers": {
+        "ai": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "ai.client": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "ai.service": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
