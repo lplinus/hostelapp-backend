@@ -81,6 +81,8 @@ INSTALLED_APPS = [
     "cms",
     "blog",
     "publicpages",
+    #AI==================
+    "AI",
     # vendors and marketplace
     "marketplace",
     "orders",
@@ -391,3 +393,7 @@ cloudinary.config(
     api_key=CLOUDINARY_API_KEY,
     api_secret=CLOUDINARY_API_SECRET,
 )
+
+# AI Settings
+GOOGLE_API_KEY = config("GOOGLE_API_KEY", default="")
+OPENROUTER_API_KEY = config("OPENROUTER_API_KEY", default="")
