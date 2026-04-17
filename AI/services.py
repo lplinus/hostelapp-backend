@@ -13,6 +13,7 @@ from hostels.models import Hostel
 from .query_parser import parse_query
 from .context_builder import build_context
 from .ai_client import call_gemini_ai, AIClientError
+from .chat_cache_service import ChatCacheService
 
 logger = logging.getLogger("ai.service")
 
@@ -57,6 +58,17 @@ class AIChatService:
             {"error": str, "status": "failed"} on failure
         """
         try:
+            # ── Check Cache First ─────────────────────────────────────────
+            cached_reply = ChatCacheService.get_cached_answer(user_message)
+            if cached_reply:
+                logger.info(f"✅ Cache HIT for question: '{user_message}'")
+                return {
+                    "reply": cached_reply,
+                    "status": "success",
+                }
+            
+            logger.info(f"🔄 Cache MISS for question: '{user_message}'")
+
             # ── Step 1: Parse the user's query ────────────────────────────
             parsed = parse_query(user_message)
             logger.info(
@@ -69,41 +81,38 @@ class AIChatService:
 
             # ── Step 2: Handle non-data intents early ─────────────────────
             if parsed["intent"] == "greeting":
-                return {
-                    "reply": (
-                        "Hey there! Welcome to Hostel In! 🏠\n"
-                        "I can help you find hostels across India.\n"
-                        "Try asking me:\n"
-                        "- Hostels in Hyderabad\n"
-                        "- Budget hostels under ₹5,000\n"
-                        "- Boys PG with WiFi"
-                    ),
-                    "status": "success",
-                }
+                reply = (
+                    "Hey there! Welcome to Hostel In! 🏠\n"
+                    "I can help you find hostels across India.\n"
+                    "Try asking me:\n"
+                    "- Hostels in Hyderabad\n"
+                    "- Budget hostels under ₹5,000\n"
+                    "- Boys PG with WiFi"
+                )
+                ChatCacheService.store_answer(user_message, reply)
+                return {"reply": reply, "status": "success"}
 
             if parsed["intent"] == "support":
-                return {
-                    "reply": (
-                        "Need help? We're here for you!\n"
-                        "- WhatsApp: 9392356996\n"
-                        "- You can also reach us through the Contact Us page.\n"
-                        "Our team typically responds within a few hours."
-                    ),
-                    "status": "success",
-                }
+                reply = (
+                    "Need help? We're here for you!\n"
+                    "- WhatsApp: 9392356996\n"
+                    "- You can also reach us through the Contact Us page.\n"
+                    "Our team typically responds within a few hours."
+                )
+                ChatCacheService.store_answer(user_message, reply)
+                return {"reply": reply, "status": "success"}
 
             if parsed["intent"] == "booking":
-                return {
-                    "reply": (
-                        "Booking is easy!\n"
-                        "1. Browse hostels on our website\n"
-                        "2. Click on a hostel you like\n"
-                        "3. Select your room type\n"
-                        "4. Click 'Book Now' and complete payment\n"
-                        "Need help finding a hostel? Just ask!"
-                    ),
-                    "status": "success",
-                }
+                reply = (
+                    "Booking is easy!\n"
+                    "1. Browse hostels on our website\n"
+                    "2. Click on a hostel you like\n"
+                    "3. Select your room type\n"
+                    "4. Click 'Book Now' and complete payment\n"
+                    "Need help finding a hostel? Just ask!"
+                )
+                ChatCacheService.store_answer(user_message, reply)
+                return {"reply": reply, "status": "success"}
 
             # ── Step 3: Filter hostels from database ──────────────────────
             hostels = AIChatService._filter_hostels(parsed)
@@ -117,6 +126,10 @@ class AIChatService:
 
             # ── Step 6: Call AI ───────────────────────────────────────────
             reply = call_gemini_ai(system_prompt, user_message)
+
+            # ── Store Response in Cache ───────────────────────────────────
+            ChatCacheService.store_answer(user_message, reply)
+            logger.info(f"💾 Saved generated answer to cache.")
 
             return {
                 "reply": reply,

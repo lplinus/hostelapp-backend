@@ -190,7 +190,10 @@ class HostelSerializer(serializers.ModelSerializer):
             "landmarks",
             "extra_charges",
             "created_at",
+            "ai_description",
+            "ai_generated_at",
         ]
+        read_only_fields = ["ai_description", "ai_generated_at"]
 
     def get_rating_count(self, obj):
         return obj.reviews.filter(is_approved=True).count()

@@ -214,6 +214,29 @@ class Hostel(SoftDeleteModel):
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # ── AI Content Generation Fields ─────────────────────────────────────
+    ai_description = models.TextField(
+        null=True,
+        blank=True,
+        help_text="AI-generated marketing description for this hostel.",
+    )
+    ai_hash = models.CharField(
+        max_length=32,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="MD5 hash of key hostel fields. Used for change detection.",
+    )
+    ai_generated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp of the last AI description generation.",
+    )
+    ai_version = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="Prompt version. Increment to force regeneration across all hostels.",
+    )
+
     def __str__(self):
         return self.name
 
