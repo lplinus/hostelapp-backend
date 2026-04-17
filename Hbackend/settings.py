@@ -399,6 +399,18 @@ GOOGLE_API_KEY = config("GOOGLE_API_KEY", default="")
 OPENROUTER_API_KEY = config("OPENROUTER_API_KEY", default="")
 
 # ========================
+# reCAPTCHA v3
+# ========================
+RECAPTCHA_SECRET_KEY = config("RECAPTCHA_SECRET_KEY", default="")
+RECAPTCHA_SCORE_THRESHOLD = 0.5
+RECAPTCHA_VALID_HOSTNAMES = [
+    "localhost",
+    "127.0.0.1",
+    "hostelin.online",
+    "www.hostelin.online",
+]
+
+# ========================
 # AI LOGGING
 # ========================
 LOGGING = {

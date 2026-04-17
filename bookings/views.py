@@ -38,8 +38,15 @@ class BookingViewSet(viewsets.ModelViewSet):
     }
     search_fields = ["guest_name", "guest_email", "mobile_number", "hostel__name", "id"]
     ordering_fields = ["created_at", "check_in", "check_out", "total_price"]
-    # def perform_create(self, serializer):
-    #     serializer.save(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        from .services.recaptcha_service import RecaptchaService
+
+        RecaptchaService.verify(
+            token=request.data.get("recaptcha_token"),
+            action="booking",
+        )
+        return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         from django.utils import timezone
