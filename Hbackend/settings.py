@@ -81,8 +81,12 @@ INSTALLED_APPS = [
     "cms",
     "blog",
     "publicpages",
+    "matching",
+    "notifications",
+
     #AI==================
     "AI",
+    
     # vendors and marketplace
     "marketplace",
     "orders",

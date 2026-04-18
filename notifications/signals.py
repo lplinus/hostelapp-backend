@@ -1,0 +1,109 @@
+from django.db.models.signals import pre_save, post_save
+from django.dispatch import receiver
+from bookings.models import Booking
+from orders.models import Order
+from hostels.models import Hostel
+from .services import NotificationService
+from .models import Notification
+
+# Simple in-memory state tracking to detect status transitions
+booking_original_state = {}
+order_original_state = {}
+hostel_original_state = {}
+
+@receiver(pre_save, sender=Booking)
+def track_booking_state(sender, instance, **kwargs):
+    if instance.pk:
+        try:
+            old_instance = Booking.objects.get(pk=instance.pk)
+            booking_original_state[instance.pk] = old_instance.status
+        except Booking.DoesNotExist:
+            booking_original_state[instance.pk] = None
+
+@receiver(post_save, sender=Booking)
+def notify_booking_changes(sender, instance, created, **kwargs):
+    if created:
+        # Notify Owner
+        NotificationService.create_notification(
+            user=instance.hostel.owner,
+            title="New Booking Received",
+            message=f"New booking from {instance.guest_name or 'a guest'} for {instance.hostel.name}.",
+            notif_type=Notification.NotificationType.BOOKING,
+            related_id=instance.id
+        )
+        # Notify User
+        if instance.user:
+            NotificationService.create_notification(
+                user=instance.user,
+                title="Booking Placed",
+                message=f"Your booking for {instance.hostel.name} has been placed.",
+                notif_type=Notification.NotificationType.BOOKING,
+                related_id=instance.id
+            )
+    else:
+        old_status = booking_original_state.get(instance.pk)
+        if old_status and old_status != instance.status:
+            if instance.user:
+                NotificationService.create_notification(
+                    user=instance.user,
+                    title="Booking Status Update",
+                    message=f"Your booking at {instance.hostel.name} is now {instance.status}.",
+                    notif_type=Notification.NotificationType.BOOKING,
+                    related_id=instance.id
+                )
+        booking_original_state.pop(instance.pk, None)
+
+@receiver(pre_save, sender=Order)
+def track_order_state(sender, instance, **kwargs):
+    if instance.pk:
+        try:
+            old_instance = Order.objects.get(pk=instance.pk)
+            order_original_state[instance.pk] = old_instance.status
+        except Order.DoesNotExist:
+            pass
+
+@receiver(post_save, sender=Order)
+def notify_order_changes(sender, instance, created, **kwargs):
+    if created:
+        NotificationService.create_notification(
+            user=instance.vendor.user,
+            title="New Order Received",
+            message=f"Received order #{instance.id} from {instance.hostel.name}.",
+            notif_type=Notification.NotificationType.ORDER,
+            related_id=instance.id
+        )
+    else:
+        old_status = order_original_state.get(instance.pk)
+        hostel_owner = instance.hostel.owner
+        if old_status and old_status != instance.status:
+            NotificationService.create_notification(
+                user=hostel_owner,
+                title="Order Status Updated",
+                message=f"Your order #{instance.id} is now {instance.status}.",
+                notif_type=Notification.NotificationType.ORDER,
+                related_id=instance.id
+            )
+        order_original_state.pop(instance.pk, None)
+
+@receiver(pre_save, sender=Hostel)
+def track_hostel_state(sender, instance, **kwargs):
+    if instance.pk:
+        try:
+            old_hostel = Hostel.objects.get(pk=instance.pk)
+            hostel_original_state[instance.pk] = old_hostel.is_approved
+        except Hostel.DoesNotExist:
+            pass
+
+@receiver(post_save, sender=Hostel)
+def notify_hostel_approval(sender, instance, created, **kwargs):
+    if not created:
+        old_approval = hostel_original_state.get(instance.pk)
+        if old_approval is False and instance.is_approved is True:
+            NotificationService.create_notification(
+                user=instance.owner,
+                title="Hostel Approved!",
+                message=f"Your hostel '{instance.name}' has been approved and is now live.",
+                notif_type=Notification.NotificationType.HOSTEL,
+                related_id=instance.id
+            )
+        hostel_original_state.pop(instance.pk, None)

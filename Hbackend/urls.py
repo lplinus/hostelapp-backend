@@ -60,6 +60,8 @@ urlpatterns = [
     path("api/cms/", include("cms.urls")),
     path("api/blog/", include("blog.urls")),
     path("api/publicpages/", include("publicpages.urls")),
+    path("api/matching/", include("matching.urls")),
+    path("api/notifications/", include("notifications.urls")),
     path(
         "api/dashboard/stats/",
         __import__(
