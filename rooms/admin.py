@@ -15,12 +15,18 @@ class BedInline(admin.TabularInline):
 
 @admin.register(RoomType)
 class RoomTypeAdmin(admin.ModelAdmin):
-    list_display = ("hostel", "get_category", "get_sharing", "base_price", "price_per_day", "is_available", "get_total_beds", "get_available_beds")
+    list_display = ("hostel", "get_category", "get_sharing", "base_price", "price_per_day", "is_available", "get_total_beds", "get_available_beds", "short_features")
     list_filter = ("hostel", "room_category", "sharing_type", "is_available")
     search_fields = ("hostel__name",)
     ordering = ("hostel__name", "room_category", "sharing_type")
     list_editable=("is_available",)
     inlines = [BedInline]
+    fieldsets = (
+        (None, {"fields": ("hostel", "room_category", "sharing_type")}),
+        ("Pricing", {"fields": ("base_price", "price_per_day", "show_this_price")}),
+        ("Room Features", {"fields": ("features",), "description": "Comma-separated list of room features, e.g. 'Air conditioning,Privacy pods,Individual lockers'"}),
+        ("Status", {"fields": ("is_available",)}),
+    )
 
     def get_category(self, obj):
         return obj.get_room_category_display()
@@ -43,6 +49,15 @@ class RoomTypeAdmin(admin.ModelAdmin):
             return bed.beds_available
         return obj.beds.filter(is_available=True).count()
     get_available_beds.short_description = "Available"
+
+    def short_features(self, obj):
+        if obj.features:
+            items = [f.strip() for f in obj.features.split(",") if f.strip()]
+            if len(items) > 2:
+                return f"{', '.join(items[:2])} +{len(items)-2}"
+            return ", ".join(items)
+        return "—"
+    short_features.short_description = "Features"
 
 
 @admin.register(Bed)

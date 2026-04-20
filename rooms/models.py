@@ -44,6 +44,12 @@ class RoomType(SoftDeleteModel):
         default=False, help_text="Show this room type's price on the hostel card"
     )
 
+    features = models.TextField(
+        blank=True,
+        default="",
+        help_text="Comma-separated room features, e.g. 'Air conditioning included,Privacy pods with curtains,Individual lockable lockers'"
+    )
+
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 

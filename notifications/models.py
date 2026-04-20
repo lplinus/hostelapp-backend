@@ -26,3 +26,17 @@ class Notification(SoftDeleteModel):
 
     def __str__(self):
         return f"{self.user.email} - {self.title}"
+
+
+class BroadcastNotification(models.Model):
+    title = models.CharField(max_length=255, help_text="Title of the broadcast notification")
+    message = models.TextField(help_text="Message body that will be sent to ALL users")
+    link = models.CharField(max_length=255, blank=True, null=True, help_text="Optional: URL to redirect user when clicked")
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_processed = models.BooleanField(default=False, help_text="True if it has been sent out to users")
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"BROADCAST: {self.title}"

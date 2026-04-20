@@ -31,6 +31,7 @@ class RoomTypeSerializer(serializers.ModelSerializer):
 
     available_beds = serializers.SerializerMethodField()
     total_beds = serializers.SerializerMethodField()
+    features_list = serializers.SerializerMethodField()
 
     price = serializers.DecimalField(
         source="base_price", max_digits=10, decimal_places=2, required=False
@@ -50,10 +51,21 @@ class RoomTypeSerializer(serializers.ModelSerializer):
             "price_per_day",
             "is_available",
             "show_this_price",
+            "features",
+            "features_list",
             "total_beds",
             "available_beds",
             "beds",
         ]
+
+    def get_features_list(self, obj):
+        """
+        Splits the comma-separated features string into a list.
+        Returns an empty list if no features are set.
+        """
+        if obj.features and obj.features.strip():
+            return [f.strip() for f in obj.features.split(",") if f.strip()]
+        return []
 
     def get_total_beds(self, obj):
         """

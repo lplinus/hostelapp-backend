@@ -4,7 +4,8 @@ from bookings.models import Booking
 from orders.models import Order
 from hostels.models import Hostel
 from .services import NotificationService
-from .models import Notification
+from .models import Notification, BroadcastNotification
+from accounts.models import User
 
 # Simple in-memory state tracking to detect status transitions
 booking_original_state = {}
@@ -107,3 +108,27 @@ def notify_hostel_approval(sender, instance, created, **kwargs):
                 related_id=instance.id
             )
         hostel_original_state.pop(instance.pk, None)
+
+@receiver(post_save, sender=BroadcastNotification)
+def process_broadcast_notification(sender, instance, created, **kwargs):
+    if created and not instance.is_processed:
+        # Create a SYSTEM notification for all active users
+        users = User.objects.filter(is_active=True)
+        notifications_to_create = []
+        for user in users:
+            notifications_to_create.append(
+                Notification(
+                    user=user,
+                    title=instance.title,
+                    message=instance.message,
+                    notification_type=Notification.NotificationType.SYSTEM,
+                    related_object_id=instance.link if instance.link else "broadcast"
+                )
+            )
+        
+        # Bulk create for efficiency
+        if notifications_to_create:
+            Notification.objects.bulk_create(notifications_to_create, batch_size=500)
+            
+        instance.is_processed = True
+        instance.save(update_fields=['is_processed'])

@@ -49,6 +49,11 @@ class GroupedRoomsService:
                 total_beds = room.beds.count()
                 available_beds = room.beds.filter(is_available=True).count()
 
+            # Parse features into a list
+            features_list = []
+            if room.features and room.features.strip():
+                features_list = [f.strip() for f in room.features.split(",") if f.strip()]
+
             grouped_data[hostel_id]["categories"][cat_display].append(
                 {
                     "id": room.id,
@@ -60,6 +65,9 @@ class GroupedRoomsService:
                     "total_beds": total_beds,
                     "available_beds": available_beds,
                     "is_available": room.is_available,
+                    "show_this_price": room.show_this_price,
+                    "features": room.features or "",
+                    "features_list": features_list,
                 }
             )
 
