@@ -8,8 +8,8 @@ from rest_framework import viewsets, permissions, decorators, filters, status
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
-from .models import Booking
-from .serializers import BookingSerializer
+from .models import Booking, HostelInquiry
+from .serializers import BookingSerializer, HostelInquirySerializer
 
 
 class BookingViewSet(viewsets.ModelViewSet):
@@ -279,3 +279,29 @@ class BookingViewSet(viewsets.ModelViewSet):
                 "booking_id": booking.id,
             }
         )
+
+
+class HostelInquiryViewSet(viewsets.ModelViewSet):
+    queryset = HostelInquiry.objects.all().order_by("-created_at")
+    serializer_class = HostelInquirySerializer
+    pagination_class = None
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action == "create":
+            return [permissions.AllowAny()]
+        return super().get_permissions()
+
+    def perform_create(self, serializer):
+        if self.request.user.is_authenticated:
+            serializer.save(user=self.request.user)
+        else:
+            serializer.save()
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return super().get_queryset()
+        if user.is_anonymous:
+            return super().get_queryset().none()
+        return super().get_queryset().filter(hostel__owner=user)

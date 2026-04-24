@@ -7,7 +7,7 @@ from django.contrib import admin
 
 
 from django.contrib import admin
-from .models import Booking, BookingEmailLog, BookingOTP
+from .models import Booking, BookingEmailLog, BookingOTP, HostelInquiry
 from Hbackend.base_models import SoftDeleteAdmin
 
 
@@ -52,4 +52,18 @@ class BookingOTPAdmin(admin.ModelAdmin):
     )
     list_filter = ("created_at",)
     search_fields = ("phone", "code")
+    readonly_fields = ("created_at",)
+
+
+@admin.register(HostelInquiry)
+class HostelInquiryAdmin(admin.ModelAdmin):
+    list_display = (
+        "guest_name",
+        "mobile_number",
+        "hostel",
+        "user",
+        "created_at",
+    )
+    list_filter = ("created_at",)
+    search_fields = ("guest_name", "mobile_number", "hostel__name")
     readonly_fields = ("created_at",)

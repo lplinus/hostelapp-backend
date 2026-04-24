@@ -71,12 +71,24 @@ class Booking(SoftDeleteModel):
     )
 
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
-    booking_type = models.CharField(max_length=10, choices=BOOKING_TYPE_CHOICES, default="stay")
-    stay_duration = models.CharField(max_length=20, choices=STAY_DURATION_CHOICES, default="none", null=True, blank=True)
+    booking_type = models.CharField(
+        max_length=10, choices=BOOKING_TYPE_CHOICES, default="stay"
+    )
+    stay_duration = models.CharField(
+        max_length=20,
+        choices=STAY_DURATION_CHOICES,
+        default="none",
+        null=True,
+        blank=True,
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
-    
-    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default="online")
-    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default="pending")
+
+    payment_method = models.CharField(
+        max_length=20, choices=PAYMENT_METHOD_CHOICES, default="online"
+    )
+    payment_status = models.CharField(
+        max_length=20, choices=PAYMENT_STATUS_CHOICES, default="pending"
+    )
 
     cooldown_until = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -85,14 +97,10 @@ class Booking(SoftDeleteModel):
         return str(self.id)
 
 
+# email logs
 
-
-
-
-#email logs
 
 class BookingEmailLog(models.Model):
-
     STATUS_CHOICES = (
         ("SUCCESS", "Success"),
         ("FAILED", "Failed"),
@@ -101,19 +109,11 @@ class BookingEmailLog(models.Model):
     booking_id = models.CharField(max_length=120)
     email = models.EmailField()
 
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES
-    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
 
-    error_message = models.TextField(
-        blank=True,
-        null=True
-    )
+    error_message = models.TextField(blank=True, null=True)
 
-    created_at = models.DateTimeField(
-        auto_now_add=True
-    )
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "booking_email_logs"
@@ -131,12 +131,46 @@ class BookingOTP(models.Model):
         if not self.expires_at:
             from django.utils import timezone
             from datetime import timedelta
+
             self.expires_at = timezone.now() + timedelta(minutes=10)
         super().save(*args, **kwargs)
 
     def is_valid(self):
         from django.utils import timezone
+
         return not self.is_used and timezone.now() < self.expires_at
 
     def __str__(self):
         return f"OTP for {self.phone}"
+
+
+class HostelInquiry(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    hostel = models.ForeignKey(
+        Hostel, on_delete=models.CASCADE, related_name="inquiries_bookings"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, related_name="hostel_inquiries", null=True, blank=True
+    )
+    guest_name = models.CharField(max_length=255)
+    guest_email = models.EmailField()
+    mobile_number = models.CharField(max_length=15)
+    message = models.TextField(blank=True, null=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("pending", "Pending"),
+            ("enquired", "Enquired"),
+            ("responded", "Responded"),
+            ("completed", "Completed"),
+        ],
+        default="pending",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "hostel_inquiries"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Inquiry for {self.hostel.name} by {self.guest_name}"

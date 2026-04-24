@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Booking
+from .models import Booking, HostelInquiry
 
 
 class BookingSerializer(serializers.ModelSerializer):
@@ -89,3 +89,12 @@ class BookingSerializer(serializers.ModelSerializer):
         if hasattr(obj, "payment"):
             return obj.payment.status
         return obj.payment_status
+
+
+class HostelInquirySerializer(serializers.ModelSerializer):
+    hostel_name = serializers.ReadOnlyField(source="hostel.name")
+
+    class Meta:
+        model = HostelInquiry
+        fields = "__all__"
+        read_only_fields = ("user",)

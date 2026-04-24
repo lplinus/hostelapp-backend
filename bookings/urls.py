@@ -1,8 +1,9 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import BookingViewSet
+from .views import BookingViewSet, HostelInquiryViewSet
 
 router = DefaultRouter()
+router.register("inquiries", HostelInquiryViewSet, basename="inquiry")
 router.register("", BookingViewSet, basename="booking")
 
 urlpatterns = [
