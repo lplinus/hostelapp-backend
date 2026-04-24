@@ -16,6 +16,7 @@ from accounts.serializers.auth_serializer import (
     VerifyEmailSerializer,
     SendOTPSerializer,
     VerifyOTPSerializer,
+    ChangePasswordSerializer,
 )
 from accounts.serializers.user_serializer import UserProfileSerializer
 from accounts.services.auth_service import AuthService
@@ -299,3 +300,38 @@ class MeView(APIView):
             UserProfileSerializer(request.user, context={"request": request}).data,
             status=status.HTTP_200_OK,
         )
+
+
+class ChangePasswordView(APIView):
+    """
+    Handles user password change.
+    POST /api/auth/change-password/
+    Requires the user to be authenticated.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        current_password = serializer.validated_data["current_password"]
+        new_password = serializer.validated_data["new_password"]
+
+        try:
+            AuthService.change_password(user, current_password, new_password)
+            return Response(
+                {"message": "Password changed successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            return Response(
+                {"detail": "An error occurred while changing password."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

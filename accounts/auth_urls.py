@@ -8,6 +8,7 @@ from accounts.views.auth_views import (
     VerifyEmailView,
     SendOTPView,
     VerifyOTPView,
+    ChangePasswordView,
 )
 
 app_name = "auth"
@@ -21,4 +22,5 @@ urlpatterns = [
     re_path(r"^verify-email/?$", VerifyEmailView.as_view(), name="verify_email"),
     re_path(r"^send-otp/?$", SendOTPView.as_view(), name="send_otp"),
     re_path(r"^verify-otp/?$", VerifyOTPView.as_view(), name="verify_otp"),
+    re_path(r"^change-password/?$", ChangePasswordView.as_view(), name="change_password"),
 ]

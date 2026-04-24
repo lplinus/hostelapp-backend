@@ -327,3 +327,12 @@ class AuthService:
             samesite="Lax",
         )
         return response
+    
+    @staticmethod
+    def change_password(user, current_password, new_password):
+        """Update user password after verifying current password."""
+        if not user.check_password(current_password):
+            raise ValueError("Incorrect current password.")
+        user.set_password(new_password)
+        user.save()
+        return user

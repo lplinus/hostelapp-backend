@@ -92,3 +92,18 @@ class SendOTPSerializer(serializers.Serializer):
 class VerifyOTPSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6)
     phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """Validates password change data."""
+
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(min_length=8, write_only=True)
+    confirm_new_password = serializers.CharField(min_length=8, write_only=True)
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_new_password"]:
+            raise serializers.ValidationError(
+                {"confirm_new_password": "Passwords do not match."}
+            )
+        return attrs
