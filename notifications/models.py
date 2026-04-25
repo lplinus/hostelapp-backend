@@ -40,3 +40,25 @@ class BroadcastNotification(models.Model):
 
     def __str__(self):
         return f"BROADCAST: {self.title}"
+
+
+class VendorNotification(SoftDeleteModel):
+    class NotificationType(models.TextChoices):
+        ORDER = 'order', 'New Order Received'
+        PAYMENT = 'payment', 'Payment Received'
+        PRODUCT = 'product', 'Product Update'
+        SYSTEM = 'system', 'System Alert'
+
+    vendor = models.ForeignKey('vendors.Vendor', on_delete=models.CASCADE, related_name='vendor_notifications')
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    notification_type = models.CharField(max_length=20, choices=NotificationType.choices, default=NotificationType.ORDER)
+    related_object_id = models.CharField(max_length=255, blank=True, null=True)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.vendor.business_name} - {self.title}"

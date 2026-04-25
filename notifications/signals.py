@@ -4,13 +4,14 @@ from bookings.models import Booking
 from orders.models import Order
 from hostels.models import Hostel
 from .services import NotificationService
-from .models import Notification, BroadcastNotification
+from .models import Notification, BroadcastNotification, VendorNotification
 from accounts.models import User
 
 # Simple in-memory state tracking to detect status transitions
 booking_original_state = {}
 order_original_state = {}
 hostel_original_state = {}
+
 
 @receiver(pre_save, sender=Booking)
 def track_booking_state(sender, instance, **kwargs):
@@ -21,6 +22,7 @@ def track_booking_state(sender, instance, **kwargs):
         except Booking.DoesNotExist:
             booking_original_state[instance.pk] = None
 
+
 @receiver(post_save, sender=Booking)
 def notify_booking_changes(sender, instance, created, **kwargs):
     if created:
@@ -30,7 +32,7 @@ def notify_booking_changes(sender, instance, created, **kwargs):
             title="New Booking Received",
             message=f"New booking from {instance.guest_name or 'a guest'} for {instance.hostel.name}.",
             notif_type=Notification.NotificationType.BOOKING,
-            related_id=instance.id
+            related_id=instance.id,
         )
         # Notify User
         if instance.user:
@@ -39,7 +41,7 @@ def notify_booking_changes(sender, instance, created, **kwargs):
                 title="Booking Placed",
                 message=f"Your booking for {instance.hostel.name} has been placed.",
                 notif_type=Notification.NotificationType.BOOKING,
-                related_id=instance.id
+                related_id=instance.id,
             )
     else:
         old_status = booking_original_state.get(instance.pk)
@@ -50,9 +52,10 @@ def notify_booking_changes(sender, instance, created, **kwargs):
                     title="Booking Status Update",
                     message=f"Your booking at {instance.hostel.name} is now {instance.status}.",
                     notif_type=Notification.NotificationType.BOOKING,
-                    related_id=instance.id
+                    related_id=instance.id,
                 )
         booking_original_state.pop(instance.pk, None)
+
 
 @receiver(pre_save, sender=Order)
 def track_order_state(sender, instance, **kwargs):
@@ -63,28 +66,52 @@ def track_order_state(sender, instance, **kwargs):
         except Order.DoesNotExist:
             pass
 
+
 @receiver(post_save, sender=Order)
 def notify_order_changes(sender, instance, created, **kwargs):
+    hostel_owner = instance.hostel.owner
+    vendor_profile = instance.vendor
+
     if created:
-        NotificationService.create_notification(
-            user=instance.vendor.user,
+        # Notify Vendor (Totally Separate System)
+        NotificationService.create_vendor_notification(
+            vendor=vendor_profile,
             title="New Order Received",
             message=f"Received order #{instance.id} from {instance.hostel.name}.",
+            notif_type=VendorNotification.NotificationType.ORDER,
+            related_id=instance.id,
+        )
+        # Notify Owner (Improved confirmation)
+        NotificationService.create_notification(
+            user=hostel_owner,
+            title="Order Placed Successfully",
+            message=f"Your order #{instance.id} has been sent to {instance.vendor.business_name}. We'll notify you when they start processing it.",
             notif_type=Notification.NotificationType.ORDER,
-            related_id=instance.id
+            related_id=instance.id,
         )
     else:
         old_status = order_original_state.get(instance.pk)
-        hostel_owner = instance.hostel.owner
         if old_status and old_status != instance.status:
+            # Notify Owner of any status change (Improved)
             NotificationService.create_notification(
                 user=hostel_owner,
                 title="Order Status Updated",
-                message=f"Your order #{instance.id} is now {instance.status}.",
+                message=f"Your order #{instance.id} with {instance.vendor.business_name} is now {instance.status.upper()}.",
                 notif_type=Notification.NotificationType.ORDER,
-                related_id=instance.id
+                related_id=instance.id,
             )
+            
+            # Notify Vendor if order is cancelled or modified significantly
+            if instance.status == 'cancelled':
+                NotificationService.create_vendor_notification(
+                    vendor=vendor_profile,
+                    title="Order Cancelled",
+                    message=f"Order #{instance.id} from {instance.hostel.name} has been cancelled.",
+                    notif_type=VendorNotification.NotificationType.ORDER,
+                    related_id=instance.id,
+                )
         order_original_state.pop(instance.pk, None)
+
 
 @receiver(pre_save, sender=Hostel)
 def track_hostel_state(sender, instance, **kwargs):
@@ -94,6 +121,7 @@ def track_hostel_state(sender, instance, **kwargs):
             hostel_original_state[instance.pk] = old_hostel.is_approved
         except Hostel.DoesNotExist:
             pass
+
 
 @receiver(post_save, sender=Hostel)
 def notify_hostel_approval(sender, instance, created, **kwargs):
@@ -105,9 +133,10 @@ def notify_hostel_approval(sender, instance, created, **kwargs):
                 title="Hostel Approved!",
                 message=f"Your hostel '{instance.name}' has been approved and is now live.",
                 notif_type=Notification.NotificationType.HOSTEL,
-                related_id=instance.id
+                related_id=instance.id,
             )
         hostel_original_state.pop(instance.pk, None)
+
 
 @receiver(post_save, sender=BroadcastNotification)
 def process_broadcast_notification(sender, instance, created, **kwargs):
@@ -122,13 +151,13 @@ def process_broadcast_notification(sender, instance, created, **kwargs):
                     title=instance.title,
                     message=instance.message,
                     notification_type=Notification.NotificationType.SYSTEM,
-                    related_object_id=instance.link if instance.link else "broadcast"
+                    related_object_id=instance.link if instance.link else "broadcast",
                 )
             )
-        
+
         # Bulk create for efficiency
         if notifications_to_create:
             Notification.objects.bulk_create(notifications_to_create, batch_size=500)
-            
+
         instance.is_processed = True
-        instance.save(update_fields=['is_processed'])
+        instance.save(update_fields=["is_processed"])
