@@ -74,6 +74,70 @@ class OrderService:
         return order
 
     @staticmethod
+    @transaction.atomic
+    def create_wholesale_order(user: User, data: Dict[str, Any]) -> Order:
+        """
+        Business logic for creating a wholesale order.
+        Validates minimum 5 items and supports manual entries.
+        """
+        hostel = OrderService._validate_hostel_owner(user, data["hostel_id"])
+
+        try:
+            vendor = Vendor.objects.get(id=data["vendor_id"], is_active=True)
+        except Vendor.DoesNotExist:
+            raise ValidationError("Vendor is inactive or doesn't exist.")
+
+        items_data = data.get("items", [])
+        if len(items_data) < 5:
+            raise ValidationError("Wholesale orders must contain at least 5 distinct items.")
+
+        order = Order.objects.create(
+            hostel=hostel,
+            vendor=vendor,
+            order_type=Order.OrderType.STRUCTURED,
+            status=Order.StatusChoices.PENDING,
+            note=data.get("note", ""),
+        )
+
+        total_order_amount = Decimal("0.00")
+
+        for item in items_data:
+            product_id = item.get("product_id")
+            manual_name = item.get("manual_name")
+            quantity = item["quantity"]
+
+            if product_id:
+                try:
+                    product = Product.objects.get(
+                        id=product_id, vendor=vendor, is_active=True
+                    )
+                    unit_price = product.price
+                    product_name = product.name
+                except Product.DoesNotExist:
+                    raise ValidationError(
+                        f"Product ID {product_id} is unavailable or doesn't belong to this vendor."
+                    )
+            else:
+                product = None
+                unit_price = Decimal("0.00")
+                product_name = manual_name
+
+            total_item_price = unit_price * quantity
+            OrderItem.objects.create(
+                order=order,
+                product=product,
+                product_name_at_order=product_name,
+                quantity=quantity,
+                unit_price=unit_price,
+                total_price=total_item_price,
+            )
+            total_order_amount += total_item_price
+
+        order.total_amount = total_order_amount
+        order.save()
+        return order
+
+    @staticmethod
     def create_image_scan_order(user: User, data: Dict[str, Any]) -> Order:
         """
         Business logic for creating an image-based list order.

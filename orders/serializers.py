@@ -5,13 +5,15 @@ from vendors.models import Vendor
 from hostels.models import Hostel
 
 class OrderItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product_name_at_order', read_only=True)
+
     class Meta:
         model = OrderItem
         fields = [
-            'id', 'product', 'product_name_at_order', 
+            'id', 'product', 'product_name', 'product_name_at_order', 
             'quantity', 'unit_price', 'total_price'
         ]
-        read_only_fields = ['id', 'product_name_at_order', 'total_price']
+        read_only_fields = ['id', 'product_name', 'product_name_at_order', 'total_price']
 
 class OrderItemCreateSerializer(serializers.Serializer):
     """
@@ -40,6 +42,31 @@ class StructuredOrderCreateSerializer(serializers.Serializer):
     vendor_id = serializers.IntegerField()
     items = OrderItemCreateSerializer(many=True)
     note = serializers.CharField(required=False, allow_blank=True)
+
+class WholesaleOrderItemSerializer(serializers.Serializer):
+    """
+    Serializer for individual items in a wholesale order.
+    Supports both catalog products and manual entries.
+    """
+    product_id = serializers.IntegerField(required=False, allow_null=True)
+    manual_name = serializers.CharField(required=False, allow_blank=True)
+    quantity = serializers.IntegerField(min_value=1)
+
+    def validate(self, data):
+        if not data.get('product_id') and not data.get('manual_name'):
+            raise serializers.ValidationError("Either product_id or manual_name must be provided.")
+        return data
+
+class WholesaleOrderCreateSerializer(serializers.Serializer):
+    hostel_id = serializers.IntegerField()
+    vendor_id = serializers.IntegerField()
+    items = WholesaleOrderItemSerializer(many=True)
+    note = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_items(self, value):
+        if len(value) < 5:
+            raise serializers.ValidationError("Wholesale orders must contain at least 5 distinct items.")
+        return value
 
 class ImageScanOrderCreateSerializer(serializers.Serializer):
     hostel_id = serializers.IntegerField()

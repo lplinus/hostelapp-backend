@@ -6,6 +6,7 @@ from .serializers import (
     OrderSerializer, 
     OrderItemSerializer, 
     StructuredOrderCreateSerializer, 
+    WholesaleOrderCreateSerializer,
     ImageScanOrderCreateSerializer
 )
 from .services import OrderService
@@ -40,6 +41,30 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({
                 "success": True,
                 "message": "Structured order placed successfully.",
+                "data": OrderSerializer(order).data
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({
+                "success": False,
+                "message": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='create-wholesale')
+    def create_wholesale(self, request):
+        """
+        Action for wholesale bulk orders with manual item support.
+        """
+        serializer = WholesaleOrderCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        try:
+            order = OrderService.create_wholesale_order(
+                user=request.user, 
+                data=serializer.validated_data
+            )
+            return Response({
+                "success": True,
+                "message": "Wholesale order placed successfully.",
                 "data": OrderSerializer(order).data
             }, status=status.HTTP_201_CREATED)
         except Exception as e:

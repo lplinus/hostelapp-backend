@@ -13,7 +13,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "description",
             "price",
             "image",
-            "is_available",
+            "is_active",
         ]
         read_only_fields = ["id", "vendor"]
 
