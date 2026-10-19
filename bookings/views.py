@@ -54,10 +54,29 @@ class BookingViewSet(viewsets.ModelViewSet):
         # Default cooldown is 24 hours
         cooldown_time = timezone.now() + timedelta(hours=24)
 
-        if self.request.user.is_authenticated:
-            serializer.save(user=self.request.user, cooldown_until=cooldown_time)
-        else:
-            serializer.save(cooldown_until=cooldown_time)
+        user = self.request.user if self.request.user.is_authenticated else None
+
+        # If guest booking without login, check if an existing registered user matches email or mobile
+        if not user:
+            guest_email = serializer.validated_data.get("guest_email")
+            mobile_number = serializer.validated_data.get("mobile_number")
+            from accounts.models import User
+            if guest_email:
+                user = User.objects.filter(email__iexact=guest_email).first()
+            if not user and mobile_number:
+                user = User.objects.filter(phone=mobile_number).first()
+
+        save_kwargs = {"cooldown_until": cooldown_time}
+        if user:
+            save_kwargs["user"] = user
+            if not serializer.validated_data.get("guest_name"):
+                save_kwargs["guest_name"] = user.get_full_name() or user.username
+            if not serializer.validated_data.get("guest_email") and user.email:
+                save_kwargs["guest_email"] = user.email
+            if not serializer.validated_data.get("mobile_number") and getattr(user, "phone", None):
+                save_kwargs["mobile_number"] = user.phone
+
+        serializer.save(**save_kwargs)
 
     def perform_update(self, serializer):
         obj = serializer.instance
@@ -264,14 +283,10 @@ class BookingViewSet(viewsets.ModelViewSet):
         booking.status = "confirmed"
         booking.save()
 
-        # Send confirmation email
+        # Send confirmation email asynchronously via Celery
         from .services.booking_email_service import BookingEmailService
 
-        try:
-            BookingEmailService.send_booking_confirmation(booking)
-        except Exception as e:
-            # Log error but don't fail the request
-            print(f"Failed to send email: {e}")
+        BookingEmailService.send_booking_confirmation_async(booking.id)
 
         return Response(
             {

@@ -230,5 +230,5 @@ class PaymentService:
         booking.status = "confirmed"
         booking.save(update_fields=["status"])
         
-        # Trigger confirmation email ONLY after successful payment confirmation
-        BookingEmailService.send_booking_confirmation(booking, payment_id=payment_id)
+        # Trigger confirmation email asynchronously via Celery after transaction commits
+        BookingEmailService.send_booking_confirmation_async(booking.id, payment_id=payment_id)

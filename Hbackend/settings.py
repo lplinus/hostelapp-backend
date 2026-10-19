@@ -327,39 +327,27 @@ SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
 
 
 # ======================
-# Gmail (Booking Emails)
-# ======================
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = "smtp.gmail.com"
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-
-# EMAIL_HOST_USER = "lakklplbros@gmail.com"
-# EMAIL_HOST_PASSWORD = "mlun eyoc ipfl svoa"
-
-# DEFAULT_FROM_EMAIL = "LiveHub <lakklplbros@gmail.com>"
-
-
-EMAIL_HOST_USER = config("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
-DEFAULT_FROM_EMAIL = f"Hostel In <{EMAIL_HOST_USER}>"
-
-
-# BREVO_FROM_EMAIL = "Hostelin <noreply@hostelin.online>"
-
-# ======================
-# Brevo (OTP Emails)
+# Brevo (Email Configuration)
 # ======================
 BREVO_FROM_EMAIL = "Hostelin <lakklplbros@gmail.com>"
 
-# brevo email config
+# Brevo SMTP Configuration
 BREVO_EMAIL_CONFIG = {
     "EMAIL_HOST": "smtp-relay.brevo.com",
     "EMAIL_PORT": 587,
     "EMAIL_USE_TLS": True,
-    "EMAIL_HOST_USER": config("BREVO_SMTP_USER"),
-    "EMAIL_HOST_PASSWORD": config("BREVO_SMTP_PASSWORD"),
+    "EMAIL_HOST_USER": config("BREVO_SMTP_USER", default=""),
+    "EMAIL_HOST_PASSWORD": config("BREVO_SMTP_PASSWORD", default=""),
 }
+
+# Default Django Mail Configuration (Uses Brevo SMTP)
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = config("EMAIL_HOST", default="smtp-relay.brevo.com")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_HOST_USER = config("BREVO_SMTP_USER", default=config("EMAIL_HOST_USER", default=""))
+EMAIL_HOST_PASSWORD = config("BREVO_SMTP_PASSWORD", default=config("EMAIL_HOST_PASSWORD", default=""))
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default=BREVO_FROM_EMAIL)
 
 
 # payment  ikeys
@@ -450,3 +438,27 @@ LOGGING = {
         },
     },
 }
+
+# ==========================================
+# CELERY & REDIS CONFIGURATION
+# ==========================================
+REDIS_HOST = config("REDIS_HOST", default="127.0.0.1")
+REDIS_PORT = config("REDIS_PORT", default="6379")
+REDIS_DB = config("REDIS_DB", default="0")
+REDIS_PASSWORD = config("REDIS_PASSWORD", default="")
+
+if REDIS_PASSWORD:
+    DEFAULT_REDIS_URL = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+else:
+    DEFAULT_REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
+CELERY_BROKER_URL = config("CELERY_BROKER_URL", default=DEFAULT_REDIS_URL)
+CELERY_RESULT_BACKEND = config("CELERY_RESULT_BACKEND", default=DEFAULT_REDIS_URL)
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60
+
+

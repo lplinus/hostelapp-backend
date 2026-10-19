@@ -16,16 +16,105 @@ from Hbackend.base_models import SoftDeleteAdmin
 @admin.register(Booking)
 class BookingAdmin(SoftDeleteAdmin):
     list_display = (
-        "id",
-        "user",
+        "short_id",
+        "guest_name",
+        "mobile_number",
+        "guest_email",
         "hostel",
         "room_type",
         "check_in",
         "check_out",
+        "total_price",
+        "payment_method",
+        "payment_status",
         "status",
+        "created_at",
     )
-    list_filter = ("status", "check_in", "check_out")
-    search_fields = ("user__email", "guest_email", "hostel__name")
+    list_filter = (
+        "status",
+        "payment_status",
+        "payment_method",
+        "booking_type",
+        "check_in",
+        "check_out",
+        "created_at",
+    )
+    search_fields = (
+        "id",
+        "guest_name",
+        "guest_email",
+        "mobile_number",
+        "user__username",
+        "user__email",
+        "user__phone",
+        "hostel__name",
+    )
+    readonly_fields = ("id", "created_at")
+
+    fieldsets = (
+        (
+            "Guest Information",
+            {
+                "fields": (
+                    "guest_name",
+                    "mobile_number",
+                    "guest_email",
+                    "guest_age",
+                    "user",
+                )
+            },
+        ),
+        (
+            "Hostel & Room Details",
+            {
+                "fields": (
+                    "hostel",
+                    "room_type",
+                    "adults",
+                    "children",
+                    "guests_count",
+                )
+            },
+        ),
+        (
+            "Stay & Schedule",
+            {
+                "fields": (
+                    "check_in",
+                    "check_out",
+                    "booking_type",
+                    "stay_duration",
+                    "cooldown_until",
+                )
+            },
+        ),
+        (
+            "Payment & Booking Status",
+            {
+                "fields": (
+                    "total_price",
+                    "payment_method",
+                    "payment_status",
+                    "status",
+                )
+            },
+        ),
+        (
+            "System Information",
+            {
+                "fields": (
+                    "id",
+                    "created_at",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def short_id(self, obj):
+        return f"STN-{str(obj.id)[:8].upper()}"
+
+    short_id.short_description = "Booking ID"
 
 
 @admin.register(BookingEmailLog)

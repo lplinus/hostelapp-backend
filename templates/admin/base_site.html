@@ -1,0 +1,103 @@
+{% extends "admin/base.html" %}
+{% load i18n %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></div>
+{% if user.is_anonymous %}
+  {% include "admin/color_theme_toggle.html" %}
+{% endif %}
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  /*
+   * Fix: Force the filter sidebar to stay as a compact column on the RIGHT side,
+   * and data/results table to stay on the LEFT at full width.
+   * Overrides Django 6.0 responsive.css that stacks them vertically at <=1024px.
+   */
+
+  /* Always keep side-by-side layout on screens wider than 767px */
+  #changelist .changelist-form-container {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    width: 100% !important;
+  }
+
+  /* Data/results column: take remaining space */
+  #changelist .changelist-form-container > div {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    max-width: calc(100% - 260px) !important;
+    width: auto !important;
+  }
+
+  /* Filter sidebar: fixed narrow width on the right */
+  #changelist-filter {
+    flex: 0 0 230px !important;
+    width: 230px !important;
+    max-width: 230px !important;
+    min-width: 230px !important;
+    order: 1 !important;
+    margin: 0 0 0 15px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Compact filter typography */
+  #changelist-filter h2 {
+    font-size: 0.8rem !important;
+    padding: 6px 12px !important;
+    margin-bottom: 0 !important;
+  }
+
+  #changelist-filter details summary {
+    font-size: 0.8rem !important;
+    padding: 5px 12px !important;
+  }
+
+  #changelist-filter ul {
+    margin: 0 !important;
+    padding: 2px 0 6px 0 !important;
+  }
+
+  #changelist-filter ul li {
+    padding: 2px 12px 2px 18px !important;
+    font-size: 0.8rem !important;
+    line-height: 1.35 !important;
+  }
+
+  #changelist-filter #changelist-filter-extra-actions {
+    padding: 4px 12px !important;
+    font-size: 0.75rem !important;
+  }
+
+  #changelist-filter #changelist-filter-extra-actions h3 {
+    font-size: 0.75rem !important;
+    margin: 0 !important;
+  }
+
+  /* Only on very narrow mobile, stack vertically */
+  @media (max-width: 600px) {
+    #changelist .changelist-form-container {
+      flex-direction: column !important;
+    }
+    #changelist .changelist-form-container > div {
+      max-width: 100% !important;
+      width: 100% !important;
+    }
+    #changelist-filter {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 100% !important;
+      flex: 1 1 auto !important;
+      order: 2 !important;
+      margin: 15px 0 0 0 !important;
+    }
+  }
+</style>
+{% endblock %}

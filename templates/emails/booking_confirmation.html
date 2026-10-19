@@ -1,239 +1,251 @@
-<!-- <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Booking Confirmation</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { width: 80%; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
-        .header { background-color: #f97316; color: #ffffff; padding: 10px; text-align: center; border-radius: 8px 8px 0 0; }
-        .content { padding: 20px; }
-        .booking-details { background-color: #f8fafc; padding: 15px; border-radius: 5px; margin: 15px 0; }
-        .footer { font-size: 0.9em; color: #666; margin-top: 20px; text-align: center; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Booking Confirmed</h1>
-        </div>
-        <div class="content">
-            <p>Hello {{ name }},</p>
-
-            <p>Your booking has been confirmed.</p>
-            
-            <div class="booking-details">
-                <p><strong>Booking ID:</strong> {{ display_id }}</p>
-                <p><strong>Hostel:</strong> {{ hostel.name }}</p>
-
-                <p><strong>Room:</strong> {{ room.room_number }}</p>
-                <p><strong>Check-in:</strong> {{ booking.check_in }}</p>
-                <p><strong>Check-out:</strong> {{ booking.check_out }}</p>
-            </div>
-            
-            <p>Please present the QR code at the hostel reception during check-in.</p>
-        </div>
-        <div class="footer">
-            <p>Thank you for choosing LiveHub!</p>
-        </div>
-    </div>
-</body>
-</html> -->
-
-
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booking Confirmed</title>
-    <style>
-        body,
-        table,
-        td,
-        a {
-            text-size-adjust: 100%;
-            -ms-text-size-adjust: 100%;
-        }
-
-        table,
-        td {
-            mso-table-lspace: 0pt;
-            mso-table-rspace: 0pt;
-            border-collapse: collapse !important;
-        }
-
-        body {
-            height: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-            background-color: #f4f7fa;
-        }
-
-        /* Gmail/Outlook Specific Shadow Fallback */
-        .main-card {
-            border: 1px solid #e2e8f0 !important;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        @media screen and (max-width: 600px) {
-            .container {
-                width: 100% !important;
-                border: none !important;
-            }
-
-            .stack {
-                display: block !important;
-                width: 100% !important;
-                text-align: left !important;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Booking Confirmed - {{ hostel.name }}</title>
+  <!--[if mso]>
+  <style type="text/css">
+    body, table, td, p, a { font-family: Arial, sans-serif !important; }
+  </style>
+  <![endif]-->
 </head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #1e293b;">
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; padding: 36px 12px;">
+    <tr>
+      <td align="center">
+        <!-- Main Card Container -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);">
+          
+          <!-- Top Accent Stripe -->
+          <tr>
+            <td style="height: 4px; background: #f97316; font-size: 0; line-height: 0;">&nbsp;</td>
+          </tr>
 
-<body style="margin: 0; padding: 0; background-color: #f4f7fa;">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f4f7fa;">
-        <tr>
-            <td align="center" style="padding: 40px 10px;">
-
-                <table border="0" cellpadding="0" cellspacing="0" width="600" class="container main-card"
-                    style="background-color: #ffffff; border-radius: 12px; border-collapse: separate !important;">
-                    <tr>
-                        <td align="center" style="padding: 40px 40px 20px 40px;">
-                            <h2 style="color: #f97316; margin: 0; font-family: Arial, sans-serif; font-size: 28px;">
-                                LiveHub</h2>
-
-                            <div style="margin-top: 25px;">
-                                <span
-                                    style="background-color: #ecfdf5; color: #059669; padding: 8px 20px; border-radius: 50px; font-family: Arial, sans-serif; font-weight: 600; font-size: 13px;">
-                                    Your stay is confirmed!
-                                </span>
-                            </div>
-
-                            <h1
-                                style="color: #1e293b; font-family: Arial, sans-serif; font-size: 24px; margin: 25px 0 10px 0;">
-                                Hi {{ name }}, get ready for your trip.</h1>
-                            <p style="color: #64748b; font-family: Arial, sans-serif; font-size: 16px; margin: 0;">
-                                Reservation ID: <strong>#{{ display_id }}</strong></p>
-                            {% if payment_id %}
-                            <p style="color: #64748b; font-family: Arial, sans-serif; font-size: 14px; margin: 5px 0 0 0;">
-                                Payment ID: <strong>{{ payment_id }}</strong></p>
-                            {% endif %}
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <td style="padding: 0 40px 20px 40px;">
-                            <table border="0" cellpadding="20" cellspacing="0" width="100%"
-                                style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                <tr>
-                                    <td>
-                                        <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                                            <tr>
-                                                <td class="stack" width="50%" valign="top"
-                                                    style="padding-bottom: 15px;">
-                                                    <p
-                                                        style="color: #94a3b8; font-family: Arial, sans-serif; font-size: 11px; text-transform: uppercase; margin: 0 0 5px 0; font-weight: bold;">
-                                                        Hostel</p>
-                                                    <p
-                                                        style="color: #1e293b; font-family: Arial, sans-serif; font-size: 15px; margin: 0; font-weight: 600;">
-                                                        {{ hostel.name }}</p>
-                                                </td>
-                                                <td class="stack" width="50%" valign="top"
-                                                    style="padding-bottom: 15px;">
-                                                    <p
-                                                        style="color: #94a3b8; font-family: Arial, sans-serif; font-size: 11px; text-transform: uppercase; margin: 0 0 5px 0; font-weight: bold;">
-                                                        Room</p>
-                                                    <p
-                                                        style="color: #1e293b; font-family: Arial, sans-serif; font-size: 15px; margin: 0; font-weight: 600;">
-                                                        {{ room.room_number }}</p>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td class="stack" width="50%" valign="top">
-                                                    <p
-                                                        style="color: #94a3b8; font-family: Arial, sans-serif; font-size: 11px; text-transform: uppercase; margin: 0 0 5px 0; font-weight: bold;">
-                                                        Check-in</p>
-                                                    <p
-                                                        style="color: #1e293b; font-family: Arial, sans-serif; font-size: 15px; margin: 0; font-weight: 600;">
-                                                        {{ booking.check_in }}</p>
-                                                </td>
-                                                <td class="stack" width="50%" valign="top">
-                                                    <p
-                                                        style="color: #94a3b8; font-family: Arial, sans-serif; font-size: 11px; text-transform: uppercase; margin: 0 0 5px 0; font-weight: bold;">
-                                                        Check-out</p>
-                                                    <p
-                                                        style="color: #1e293b; font-family: Arial, sans-serif; font-size: 15px; margin: 0; font-weight: 600;">
-                                                        {{ booking.check_out }}</p>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-
-                    {% if extra_charges %}
-                    <tr>
-                        <td style="padding: 0 40px 20px 40px;">
-                            <table border="0" cellpadding="16" cellspacing="0" width="100%"
-                                style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;">
-                                <tr>
-                                    <td>
-                                        <p style="color: #92400e; font-family: Arial, sans-serif; font-size: 11px; text-transform: uppercase; margin: 0 0 12px 0; font-weight: bold;">
-                                            Extra Charges (billed separately)</p>
-                                        <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                                            {% for charge in extra_charges %}
-                                            <tr>
-                                                <td style="padding: 6px 0; {% if not forloop.last %}border-bottom: 1px solid #fde68a;{% endif %}">
-                                                    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                                                        <tr>
-                                                            <td style="color: #1e293b; font-family: Arial, sans-serif; font-size: 14px; font-weight: 600;">
-                                                                {{ charge.get_charge_type_display }}
-                                                                {% if charge.description %}
-                                                                <br><span style="color: #94a3b8; font-size: 11px; font-weight: 400;">{{ charge.description }}</span>
-                                                                {% endif %}
-                                                            </td>
-                                                            <td align="right" style="color: #1e293b; font-family: Arial, sans-serif; font-size: 14px; font-weight: 700; white-space: nowrap;">
-                                                                &#8377;{{ charge.amount }}/mo</td>
-                                                        </tr>
-                                                    </table>
-                                                </td>
-                                            </tr>
-                                            {% endfor %}
-                                        </table>
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                    {% endif %}
-
-                    <tr>
-                        <td align="center" style="padding: 10px 40px 40px 40px;">
-                            <p
-                                style="color: #475569; font-family: Arial, sans-serif; font-size: 13px; margin-bottom: 15px;">
-                                <strong>Receptionist:</strong> Scan below to verify check-in details.
-                            </p>
-
-                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=ID:{{ display_id }}%0AName:{{ name }}%0AHostel:{{ hostel.name }}%0ARoom:{{ room.room_number }}%0AIn:{{ booking.check_in }}%0AOut:{{ booking.check_out }}{% if payment_id %}%0APaymentID:{{ payment_id }}{% endif %}"
-                                alt="Check-in QR" width="160" height="160"
-                                style="display: block; border: 8px solid #ffffff; outline: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-
-                            <p
-                                style="color: #94a3b8; font-family: Arial, sans-serif; font-size: 11px; margin-top: 10px;">
-                                Digital Signature: {{ display_id }}
-                            </p>
-                        </td>
-                    </tr>
-                </table>
-
+          <!-- Header: Brand & Status -->
+          <tr>
+            <td style="padding: 28px 32px 18px 32px;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td align="left" valign="middle">
+                    <span style="font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: #0f172a;">
+                      Hostel<span style="color: #f97316;">In</span>
+                    </span>
+                  </td>
+                  <td align="right" valign="middle">
+                    <span style="display: inline-block; background-color: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; border-radius: 9999px; padding: 4px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                      ● Confirmed
+                    </span>
+                  </td>
+                </tr>
+              </table>
             </td>
-        </tr>
-    </table>
-</body>
+          </tr>
 
+          <!-- Divider -->
+          <tr>
+            <td style="padding: 0 32px;">
+              <div style="border-top: 1px solid #f1f5f9; height: 1px; line-height: 1px;">&nbsp;</div>
+            </td>
+          </tr>
+
+          <!-- Hero Greeting -->
+          <tr>
+            <td style="padding: 24px 32px 16px 32px;">
+              <h1 style="margin: 0 0 6px 0; font-size: 22px; font-weight: 700; color: #0f172a; line-height: 1.3;">
+                Hi {{ name }}, you're all set!
+              </h1>
+              <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+                Your reservation at <strong style="color: #1e293b;">{{ hostel.name }}</strong> is confirmed.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Booking Reference Card -->
+          <tr>
+            <td style="padding: 0 32px 20px 32px;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; width: 100%;">
+                <tr>
+                  <td style="padding: 14px 18px;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                      <tr>
+                        <td align="left" style="font-size: 12px; color: #64748b; font-weight: 500;">
+                          Booking ID
+                        </td>
+                        <td align="right" style="font-size: 13px; font-weight: 700; color: #0f172a; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;">
+                          #{{ display_id }}
+                        </td>
+                      </tr>
+                      {% if payment_id %}
+                      <tr>
+                        <td align="left" style="font-size: 12px; color: #64748b; font-weight: 500; padding-top: 6px;">
+                          Payment ID
+                        </td>
+                        <td align="right" style="font-size: 12px; font-weight: 600; color: #475569; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; padding-top: 6px;">
+                          {{ payment_id }}
+                        </td>
+                      </tr>
+                      {% endif %}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Stay Details Grid -->
+          <tr>
+            <td style="padding: 0 32px 20px 32px;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                <!-- Dates Row -->
+                <tr>
+                  <td width="50%" valign="top" style="padding: 16px 20px; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; background-color: #f8fafc;">
+                    <span style="display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.5px; margin-bottom: 4px;">
+                      Check-in
+                    </span>
+                    <span style="font-size: 15px; font-weight: 700; color: #0f172a;">
+                      {{ booking.check_in }}
+                    </span>
+                  </td>
+                  <td width="50%" valign="top" style="padding: 16px 20px; border-bottom: 1px solid #f1f5f9; background-color: #f8fafc;">
+                    <span style="display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.5px; margin-bottom: 4px;">
+                      Check-out
+                    </span>
+                    <span style="font-size: 15px; font-weight: 700; color: #0f172a;">
+                      {{ booking.check_out }}
+                    </span>
+                  </td>
+                </tr>
+
+                <!-- Property & Room Info -->
+                <tr>
+                  <td colspan="2" style="padding: 16px 20px; border-bottom: 1px solid #f1f5f9;">
+                    <span style="display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.5px; margin-bottom: 3px;">
+                      Hostel & Room
+                    </span>
+                    <span style="display: block; font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 2px;">
+                      {{ hostel.name }}
+                    </span>
+                    <span style="font-size: 13px; color: #64748b;">
+                      {{ room.room_number }}{% if hostel.city %} • {{ hostel.city }}{% endif %}
+                    </span>
+                  </td>
+                </tr>
+
+                <!-- Payment Row -->
+                <tr>
+                  <td colspan="2" style="padding: 16px 20px;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                      <tr>
+                        <td align="left" style="font-size: 13px; color: #64748b;">
+                          Payment Method
+                        </td>
+                        <td align="right" style="font-size: 13px; font-weight: 600; color: #0f172a;">
+                          {{ payment_method }}
+                        </td>
+                      </tr>
+                      {% if total_price %}
+                      <tr>
+                        <td align="left" style="font-size: 14px; font-weight: 700; color: #0f172a; padding-top: 10px;">
+                          Total Booking Amount
+                        </td>
+                        <td align="right" style="font-size: 16px; font-weight: 800; color: #0f172a; padding-top: 10px;">
+                          &#8377;{{ total_price }}
+                        </td>
+                      </tr>
+                      {% endif %}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Extra Charges Section (if applicable) -->
+          {% if extra_charges %}
+          <tr>
+            <td style="padding: 0 32px 20px 32px;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 10px; padding: 14px 18px;">
+                <tr>
+                  <td>
+                    <span style="display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #b45309; letter-spacing: 0.5px; margin-bottom: 8px;">
+                      Extra Charges (Payable Directly At Hostel)
+                    </span>
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                      {% for charge in extra_charges %}
+                      <tr>
+                        <td align="left" style="font-size: 13px; color: #78350f; padding: 4px 0;">
+                          {{ charge.get_charge_type_display }}
+                          {% if charge.description %}
+                          <span style="font-size: 11px; color: #92400e;">({{ charge.description }})</span>
+                          {% endif %}
+                        </td>
+                        <td align="right" style="font-size: 13px; font-weight: 700; color: #78350f; padding: 4px 0;">
+                          &#8377;{{ charge.amount }}/mo
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- Check-in QR Code Card -->
+          <tr>
+            <td style="padding: 0 32px 28px 32px;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; text-align: center; padding: 24px 16px;">
+                <tr>
+                  <td align="center">
+                    <span style="display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 14px;">
+                      Check-in QR Pass
+                    </span>
+
+                    <!-- QR Image Container -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                      <tr>
+                        <td align="center">
+                          <img src="cid:booking_qr" alt="Booking Check-in QR Code" width="150" height="150" style="display: block; width: 150px; height: 150px; border: 0;" />
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="margin: 12px 0 0 0; font-size: 12px; color: #64748b; line-height: 1.5;">
+                      Present this QR pass at the reception upon check-in for instant verification.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Guidelines Note -->
+          <tr>
+            <td style="padding: 0 32px 24px 32px;">
+              <p style="margin: 0; font-size: 12px; color: #94a3b8; line-height: 1.6;">
+                <strong style="color: #64748b;">Important:</strong> Please carry a government-approved photo ID (such as Aadhaar, Driving License, or Passport) for physical check-in.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8fafc; padding: 22px 32px; text-align: center; border-top: 1px solid #f1f5f9;">
+              <p style="margin: 0 0 6px 0; font-size: 12px; color: #64748b;">
+                Thank you for booking with <strong style="color: #0f172a;">Hostel In</strong>.
+              </p>
+              <p style="margin: 0; font-size: 11px; color: #94a3b8;">
+                &copy; Hostel In. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
 </html>

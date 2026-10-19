@@ -94,7 +94,12 @@ class Booking(SoftDeleteModel):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return str(self.id)
+        name = self.guest_name or (
+            self.user.get_full_name() or self.user.username if self.user else "Guest"
+        )
+        phone = self.mobile_number or "No phone"
+        hostel_name = self.hostel.name if hasattr(self, "hostel") and self.hostel else "Hostel"
+        return f"{name} ({phone}) - {hostel_name}"
 
 
 # email logs

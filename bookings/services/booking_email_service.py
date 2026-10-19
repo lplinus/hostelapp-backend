@@ -1,5 +1,5 @@
 import logging
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives, get_connection
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
@@ -11,6 +11,38 @@ logger = logging.getLogger(__name__)
 
 
 class BookingEmailService:
+
+    @staticmethod
+    def send_booking_confirmation_async(booking_id, payment_id=None):
+        """
+        Asynchronously dispatch booking confirmation email via Celery.
+        Uses transaction.on_commit to ensure the booking record is safely
+        committed in the database before the background worker picks it up.
+        Includes a graceful fallback if Celery/Redis is temporarily unavailable.
+        """
+        from django.db import transaction
+
+        def _dispatch():
+            try:
+                from bookings.tasks import send_booking_confirmation_task
+                send_booking_confirmation_task.delay(str(booking_id), payment_id=payment_id)
+                logger.info(f"Queued Celery email task for booking {booking_id}")
+            except Exception as queue_err:
+                logger.warning(
+                    f"Celery queue failed ({queue_err}). Executing fallback email send."
+                )
+                try:
+                    from bookings.models import Booking
+                    booking = (
+                        Booking.objects.select_related("user", "hostel", "room_type")
+                        .prefetch_related("hostel__extra_charges")
+                        .get(id=booking_id)
+                    )
+                    BookingEmailService.send_booking_confirmation(booking, payment_id=payment_id)
+                except Exception as fb_err:
+                    logger.error(f"Fallback email dispatch error: {fb_err}")
+
+        transaction.on_commit(_dispatch)
 
     @staticmethod
     def send_booking_confirmation(booking, payment_id=None):
@@ -63,11 +95,18 @@ class BookingEmailService:
                 "check_out": booking.check_out,
                 "payment_id": payment_id,
                 "payment_method": booking.get_payment_method_display(),
+                "payment_status": (
+                    booking.get_payment_status_display()
+                    if hasattr(booking, "get_payment_status_display")
+                    else getattr(booking, "payment_status", "CONFIRMED")
+                ),
+                "total_price": getattr(booking, "total_price", None),
+                "guests_count": getattr(booking, "guests_count", 1),
                 "extra_charges": extra_charges,
             }
 
             subject = f"Booking Confirmed - {hostel.name}"
-            from_email = settings.DEFAULT_FROM_EMAIL
+            from_email = getattr(settings, 'BREVO_FROM_EMAIL', settings.DEFAULT_FROM_EMAIL)
 
             to_email = booking.guest_email or (
                 booking.user.email if booking.user else None
@@ -93,22 +132,39 @@ class BookingEmailService:
 
             text_content = strip_tags(html_content)
 
+            # Establish email connection (Brevo relay)
+            brevo_config = getattr(settings, 'BREVO_EMAIL_CONFIG', {})
+            connection = None
+            if brevo_config.get('EMAIL_HOST_USER') and brevo_config.get('EMAIL_HOST_PASSWORD'):
+                try:
+                    connection = get_connection(
+                        host=brevo_config.get('EMAIL_HOST', 'smtp-relay.brevo.com'),
+                        port=brevo_config.get('EMAIL_PORT', 587),
+                        username=brevo_config.get('EMAIL_HOST_USER'),
+                        password=brevo_config.get('EMAIL_HOST_PASSWORD'),
+                        use_tls=brevo_config.get('EMAIL_USE_TLS', True),
+                        timeout=15,
+                    )
+                except Exception as conn_err:
+                    logger.warning(f"Failed to initialize Brevo connection: {conn_err}")
+
             email = EmailMultiAlternatives(
                 subject,
                 text_content,
                 from_email,
-                [to_email]
+                [to_email],
+                connection=connection
             )
 
             email.attach_alternative(html_content, "text/html")
 
+            # Generate and attach QR code inline for fast loading in email clients
+            from email.mime.image import MIMEImage
             qr_buffer = generate_booking_qr(qr_data)
-
-            email.attach(
-                "booking_qr.png",
-                qr_buffer.getvalue(),
-                "image/png"
-            )
+            qr_image = MIMEImage(qr_buffer.getvalue(), _subtype="png")
+            qr_image.add_header('Content-ID', '<booking_qr>')
+            qr_image.add_header('Content-Disposition', 'inline', filename='booking_qr.png')
+            email.attach(qr_image)
 
             # Send email
             email.send()
