@@ -92,6 +92,11 @@ INSTALLED_APPS = [
     "orders",
     "vendors",
     "hostelservices",
+
+    # Hotels & Vacation Rentals
+    "hotels",
+    "vacanationrentals",
+
     "django_cleanup.apps.CleanupConfig",
 ]
 

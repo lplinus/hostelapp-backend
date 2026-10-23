@@ -16,7 +16,8 @@ class StateAdmin(SoftDeleteAdmin):
 
 @admin.register(City)
 class CityAdmin(SoftDeleteAdmin):
-    list_display = ("name", "state", "is_deleted","is_featured")
+    list_display = ("name", "state", "is_deleted", "is_featured")
+    list_editable = ("is_deleted",)
     list_filter = ("state", "is_deleted")
 
 @admin.register(Area)

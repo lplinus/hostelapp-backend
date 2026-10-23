@@ -338,6 +338,8 @@ class CityHostelListSerializer(serializers.ModelSerializer):
             "is_verified",
             "is_approved",
             "room_types",
+            "latitude",
+            "longitude",
         ]
 
     def get_rating_count(self, obj):

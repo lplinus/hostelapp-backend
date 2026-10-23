@@ -83,6 +83,10 @@ urlpatterns = [
     path("api/vendors/", include("vendors.urls")),
     path("api/hostelservices/", include("hostelservices.urls")),
     path("api/ai/", include("AI.urls")),
+
+    # hotels & vacation rentals
+    path("api/hotels/", include("hotels.urls")),
+    path("api/vacanationrentals/", include("vacanationrentals.urls")),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
