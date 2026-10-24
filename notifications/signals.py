@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from bookings.models import Booking
@@ -69,47 +70,16 @@ def track_order_state(sender, instance, **kwargs):
 
 @receiver(post_save, sender=Order)
 def notify_order_changes(sender, instance, created, **kwargs):
-    hostel_owner = instance.hostel.owner
-    vendor_profile = instance.vendor
-
     if created:
-        # Notify Vendor (Totally Separate System)
-        NotificationService.create_vendor_notification(
-            vendor=vendor_profile,
-            title="New Order Received",
-            message=f"Received order #{instance.id} from {instance.hostel.name}.",
-            notif_type=VendorNotification.NotificationType.ORDER,
-            related_id=instance.id,
-        )
-        # Notify Owner (Improved confirmation)
-        NotificationService.create_notification(
-            user=hostel_owner,
-            title="Order Placed Successfully",
-            message=f"Your order #{instance.id} has been sent to {instance.vendor.business_name}. We'll notify you when they start processing it.",
-            notif_type=Notification.NotificationType.ORDER,
-            related_id=instance.id,
-        )
+        from orders.tasks import process_order_creation_task
+        transaction.on_commit(lambda: process_order_creation_task.delay(instance.id))
     else:
         old_status = order_original_state.get(instance.pk)
         if old_status and old_status != instance.status:
-            # Notify Owner of any status change (Improved)
-            NotificationService.create_notification(
-                user=hostel_owner,
-                title="Order Status Updated",
-                message=f"Your order #{instance.id} with {instance.vendor.business_name} is now {instance.status.upper()}.",
-                notif_type=Notification.NotificationType.ORDER,
-                related_id=instance.id,
+            from orders.tasks import process_order_status_update_task
+            transaction.on_commit(
+                lambda: process_order_status_update_task.delay(instance.id, old_status, instance.status)
             )
-            
-            # Notify Vendor if order is cancelled or modified significantly
-            if instance.status == 'cancelled':
-                NotificationService.create_vendor_notification(
-                    vendor=vendor_profile,
-                    title="Order Cancelled",
-                    message=f"Order #{instance.id} from {instance.hostel.name} has been cancelled.",
-                    notif_type=VendorNotification.NotificationType.ORDER,
-                    related_id=instance.id,
-                )
         order_original_state.pop(instance.pk, None)
 
 

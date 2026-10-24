@@ -41,16 +41,21 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         from .services.recaptcha_service import RecaptchaService
+        from django.db import transaction
 
         RecaptchaService.verify(
             token=request.data.get("recaptcha_token"),
             action="booking",
         )
-        return super().create(request, *args, **kwargs)
+        with transaction.atomic():
+            return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         from django.utils import timezone
         from datetime import timedelta
+        from django.db import transaction
+        from .tasks import process_booking_task
+
         # Default cooldown is 24 hours
         cooldown_time = timezone.now() + timedelta(hours=24)
 
@@ -76,7 +81,16 @@ class BookingViewSet(viewsets.ModelViewSet):
             if not serializer.validated_data.get("mobile_number") and getattr(user, "phone", None):
                 save_kwargs["mobile_number"] = user.phone
 
-        serializer.save(**save_kwargs)
+        # If it's a visit request, set initial status as confirmed
+        if serializer.validated_data.get("booking_type") == "visit":
+            save_kwargs["status"] = "confirmed"
+
+        booking = serializer.save(**save_kwargs)
+
+        # Offload concurrent booking processing, notifications, and QR generation to Celery
+        transaction.on_commit(
+            lambda: process_booking_task.delay(str(booking.id))
+        )
 
     def perform_update(self, serializer):
         obj = serializer.instance
@@ -99,6 +113,8 @@ class BookingViewSet(viewsets.ModelViewSet):
             "create",
             "send_otp",
             "verify_otp",
+            "send_email_otp",
+            "verify_email_otp",
             "confirm_pay_at_property",
         ]:
             return [permissions.AllowAny()]
@@ -263,30 +279,100 @@ class BookingViewSet(viewsets.ModelViewSet):
             return Response({"error": "Invalid or expired OTP"}, status=400)
 
     @decorators.action(
+        detail=False, methods=["post"], permission_classes=[permissions.AllowAny]
+    )
+    def send_email_otp(self, request):
+        """
+        Sends an OTP to the provided email address for booking verification.
+        Includes a smart skip if the authenticated user has already verified their email.
+        """
+        email = request.data.get("email")
+        guest_name = request.data.get("guest_name", "")
+
+        if not email:
+            return Response({"error": "email is required"}, status=400)
+
+        clean_email = email.strip().lower()
+
+        # Smart verification: If logged-in user already has verified matching email
+        if (
+            request.user.is_authenticated
+            and getattr(request.user, "is_email_verified", False)
+            and request.user.email
+            and request.user.email.strip().lower() == clean_email
+        ):
+            return Response(
+                {
+                    "message": "Email already verified via account",
+                    "verified": True,
+                }
+            )
+
+        from .services.booking_otp_service import BookingOTPService
+
+        try:
+            BookingOTPService.send_booking_email_otp(clean_email, guest_name=guest_name)
+            return Response({"message": "OTP sent to your email successfully", "verified": False})
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
+    @decorators.action(
+        detail=False, methods=["post"], permission_classes=[permissions.AllowAny]
+    )
+    def verify_email_otp(self, request):
+        """
+        Verifies the OTP sent to the user's email.
+        """
+        email = request.data.get("email")
+        code = request.data.get("code")
+
+        if not email or not code:
+            return Response({"error": "email and code are required"}, status=400)
+
+        clean_email = email.strip().lower()
+        clean_code = str(code).strip()
+
+        from .services.booking_otp_service import BookingOTPService
+
+        if BookingOTPService.verify_booking_email_otp(clean_email, clean_code):
+            # If user is logged in with this email, keep their account in sync
+            if request.user.is_authenticated and request.user.email and request.user.email.strip().lower() == clean_email:
+                request.user.is_email_verified = True
+                request.user.save(update_fields=["is_email_verified"])
+
+            return Response({"message": "Email verified successfully", "verified": True})
+        else:
+            return Response({"error": "Invalid or expired OTP code"}, status=400)
+
+    @decorators.action(
         detail=True, methods=["post"], permission_classes=[permissions.AllowAny]
     )
     def confirm_pay_at_property(self, request, pk=None):
         """
         Confirms a pending booking with the 'pay at property' option.
-        Updates status to 'confirmed' and sends a confirmation email.
+        Updates status to 'confirmed' atomically and triggers Celery confirmation task.
         """
-        booking = self.get_object()
+        from django.db import transaction
+        from .tasks import process_booking_confirmation_task
 
-        if booking.status != "pending":
-            return Response(
-                {"error": "Only pending bookings can be confirmed."},
-                status=status.HTTP_400_BAD_REQUEST,
+        with transaction.atomic():
+            booking = self.get_object()
+
+            if booking.status != "pending":
+                return Response(
+                    {"error": "Only pending bookings can be confirmed."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            booking.payment_method = "on_arrival"
+            booking.payment_status = "pending"
+            booking.status = "confirmed"
+            booking.save(update_fields=["payment_method", "payment_status", "status"])
+
+            # Queue confirmation processing, QR generation, and email asynchronously via Celery
+            transaction.on_commit(
+                lambda: process_booking_confirmation_task.delay(str(booking.id))
             )
-
-        booking.payment_method = "on_arrival"
-        booking.payment_status = "pending"
-        booking.status = "confirmed"
-        booking.save()
-
-        # Send confirmation email asynchronously via Celery
-        from .services.booking_email_service import BookingEmailService
-
-        BookingEmailService.send_booking_confirmation_async(booking.id)
 
         return Response(
             {

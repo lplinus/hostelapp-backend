@@ -45,9 +45,23 @@ class BookingSerializer(serializers.ModelSerializer):
         if not check_in or not check_out:
             return data
 
+        from django.utils import timezone
+        from datetime import timedelta
         from django.db.models import Q
 
-        # Check for overlapping bookings with the same mobile or email
+        # 1. Date sanity checks
+        today = timezone.now().date()
+        if check_in < today:
+            raise serializers.ValidationError(
+                {"check_in": "Check-in date cannot be in the past."}
+            )
+
+        if check_in >= check_out:
+            raise serializers.ValidationError(
+                {"check_out": "Check-out date must be strictly after check-in date."}
+            )
+
+        # 2. Check for overlapping bookings with the same mobile or email
         # ONLY for the SAME hostel (as per user requirement)
         duplicate_query = Q()
         if mobile_number:
@@ -56,24 +70,31 @@ class BookingSerializer(serializers.ModelSerializer):
             duplicate_query |= Q(guest_email=guest_email)
 
         if duplicate_query and hostel:
-            existing_bookings = Booking.objects.filter(
-                duplicate_query,
-                hostel=hostel
-            ).filter(
-                check_in__lt=check_out,
-                check_out__gt=check_in
-            ).exclude(status="cancelled")
+            # Stale cutoff for abandoned pending online checkouts (30 mins)
+            stale_cutoff = timezone.now() - timedelta(minutes=30)
+
+            existing_bookings = (
+                Booking.objects.filter(duplicate_query, hostel=hostel)
+                .filter(check_in__lt=check_out, check_out__gt=check_in)
+                .exclude(status="cancelled")
+                .exclude(
+                    status="pending",
+                    payment_method="online",
+                    created_at__lt=stale_cutoff,
+                )
+            )
 
             if self.instance:
                 existing_bookings = existing_bookings.exclude(pk=self.instance.pk)
 
             if existing_bookings.exists():
                 raise serializers.ValidationError(
-                    f"A booking already exists for this guest at {hostel.name} during the selected dates. "
+                    f"A booking already exists for this guest at {hostel.name} during the selected dates ({check_in} to {check_out}). "
                     "You cannot have multiple active bookings at the same hostel for overlapping dates."
                 )
 
         return data
+
 
     def get_room_category(self, obj):
         if hasattr(obj, "room_type") and obj.room_type:

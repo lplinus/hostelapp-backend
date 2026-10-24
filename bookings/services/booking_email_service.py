@@ -81,6 +81,15 @@ class BookingEmailService:
                 f"{extra_charges_lines}"
             )
 
+            # Get primary or first hostel image if available
+            hostel_image = None
+            try:
+                img_obj = hostel.images.filter(is_primary=True).first() or hostel.images.first()
+                if img_obj and hasattr(img_obj, "image") and img_obj.image:
+                    hostel_image = img_obj.image.url
+            except Exception:
+                pass
+
             context = {
                 "booking": booking,
                 "display_id": display_id,
@@ -88,6 +97,7 @@ class BookingEmailService:
                     booking.user.get_full_name() if booking.user else "Guest"
                 ),
                 "hostel": hostel,
+                "hostel_image": hostel_image,
                 "room": {
                     "room_number": f"{room_type.get_room_category_display()} - {room_type.get_sharing_type_display()}"
                 },

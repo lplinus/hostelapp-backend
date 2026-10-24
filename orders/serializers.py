@@ -6,14 +6,27 @@ from hostels.models import Hostel
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product_name_at_order', read_only=True)
+    product_image = serializers.SerializerMethodField()
+    quantity_unit = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
         fields = [
             'id', 'product', 'product_name', 'product_name_at_order', 
-            'quantity', 'unit_price', 'total_price'
+            'quantity', 'unit_price', 'total_price',
+            'product_image', 'quantity_unit'
         ]
-        read_only_fields = ['id', 'product_name', 'product_name_at_order', 'total_price']
+        read_only_fields = ['id', 'product_name', 'product_name_at_order', 'total_price', 'product_image', 'quantity_unit']
+
+    def get_product_image(self, obj):
+        if obj.product and obj.product.image:
+            return obj.product.image.url
+        return None
+
+    def get_quantity_unit(self, obj):
+        if obj.product and obj.product.quantity_unit:
+            return obj.product.quantity_unit
+        return None
 
 class OrderItemCreateSerializer(serializers.Serializer):
     """

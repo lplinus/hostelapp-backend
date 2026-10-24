@@ -42,35 +42,45 @@ class OrderService:
             note=data.get("note", ""),
         )
 
-        total_order_amount = Decimal("0.00")
         items_data = data.get("items", [])
-
         if not items_data:
             raise ValidationError("Structured orders must contain items.")
 
+        # Batch query products in 1 query to efficiently support orders with many items
+        product_ids = [item["product_id"] for item in items_data if "product_id" in item]
+        products_map = {
+            p.id: p
+            for p in Product.objects.filter(
+                id__in=product_ids, vendor=vendor, is_active=True
+            )
+        }
+
+        total_order_amount = Decimal("0.00")
+        order_items_to_create = []
+
         for item in items_data:
-            try:
-                product = Product.objects.get(
-                    id=item["product_id"], vendor=vendor, is_active=True
-                )
-            except Product.DoesNotExist:
+            product = products_map.get(item["product_id"])
+            if not product:
                 raise ValidationError(
                     f"Product ID {item['product_id']} is unavailable or doesn't belong to this vendor."
                 )
 
             total_item_price = product.price * item["quantity"]
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                product_name_at_order=product.name,
-                quantity=item["quantity"],
-                unit_price=product.price,
-                total_price=total_item_price,
+            order_items_to_create.append(
+                OrderItem(
+                    order=order,
+                    product=product,
+                    product_name_at_order=product.name,
+                    quantity=item["quantity"],
+                    unit_price=product.price,
+                    total_price=total_item_price,
+                )
             )
             total_order_amount += total_item_price
 
+        OrderItem.objects.bulk_create(order_items_to_create)
         order.total_amount = total_order_amount
-        order.save()
+        order.save(update_fields=["total_amount"])
         return order
 
     @staticmethod
@@ -79,6 +89,7 @@ class OrderService:
         """
         Business logic for creating a wholesale order.
         Validates minimum 5 items and supports manual entries.
+        Optimized with batch product lookup and bulk item creation.
         """
         hostel = OrderService._validate_hostel_owner(user, data["hostel_id"])
 
@@ -99,7 +110,18 @@ class OrderService:
             note=data.get("note", ""),
         )
 
+        catalog_product_ids = [
+            item["product_id"] for item in items_data if item.get("product_id")
+        ]
+        products_map = {
+            p.id: p
+            for p in Product.objects.filter(
+                id__in=catalog_product_ids, vendor=vendor, is_active=True
+            )
+        }
+
         total_order_amount = Decimal("0.00")
+        order_items_to_create = []
 
         for item in items_data:
             product_id = item.get("product_id")
@@ -107,34 +129,34 @@ class OrderService:
             quantity = item["quantity"]
 
             if product_id:
-                try:
-                    product = Product.objects.get(
-                        id=product_id, vendor=vendor, is_active=True
-                    )
-                    unit_price = product.price
-                    product_name = product.name
-                except Product.DoesNotExist:
+                product = products_map.get(product_id)
+                if not product:
                     raise ValidationError(
                         f"Product ID {product_id} is unavailable or doesn't belong to this vendor."
                     )
+                unit_price = product.price
+                product_name = product.name
             else:
                 product = None
                 unit_price = Decimal("0.00")
                 product_name = manual_name
 
             total_item_price = unit_price * quantity
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                product_name_at_order=product_name,
-                quantity=quantity,
-                unit_price=unit_price,
-                total_price=total_item_price,
+            order_items_to_create.append(
+                OrderItem(
+                    order=order,
+                    product=product,
+                    product_name_at_order=product_name,
+                    quantity=quantity,
+                    unit_price=unit_price,
+                    total_price=total_item_price,
+                )
             )
             total_order_amount += total_item_price
 
+        OrderItem.objects.bulk_create(order_items_to_create)
         order.total_amount = total_order_amount
-        order.save()
+        order.save(update_fields=["total_amount"])
         return order
 
     @staticmethod

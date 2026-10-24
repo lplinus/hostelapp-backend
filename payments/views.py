@@ -145,15 +145,23 @@ def razorpay_webhook(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    # Offload webhook processing to Celery background task so Razorpay gets an immediate 200 OK
+    from .tasks import process_payment_webhook_task
     try:
-        result = PaymentService.handle_webhook(request.body, signature)
-        return Response(result, status=status.HTTP_200_OK)
-    except PaymentError as e:
-        logger.warning("Webhook rejected: %s", e)
-        return Response(
-            {"detail": str(e)},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        payload_str = request.body.decode("utf-8")
+        process_payment_webhook_task.delay(payload_str, signature)
+        return Response({"detail": "Webhook received and queued for processing."}, status=status.HTTP_200_OK)
+    except Exception as queue_err:
+        logger.warning("Celery webhook queueing failed (%s). Falling back to synchronous execution.", queue_err)
+        try:
+            result = PaymentService.handle_webhook(request.body, signature)
+            return Response(result, status=status.HTTP_200_OK)
+        except PaymentError as e:
+            logger.warning("Webhook rejected: %s", e)
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -126,7 +126,8 @@ class BookingEmailLog(models.Model):
 
 
 class BookingOTP(models.Model):
-    phone = models.CharField(max_length=20)
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    email = models.EmailField(max_length=255, blank=True, null=True)
     code = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
@@ -146,7 +147,8 @@ class BookingOTP(models.Model):
         return not self.is_used and timezone.now() < self.expires_at
 
     def __str__(self):
-        return f"OTP for {self.phone}"
+        target = self.email or self.phone or "Unknown"
+        return f"OTP for {target}"
 
 
 class HostelInquiry(models.Model):

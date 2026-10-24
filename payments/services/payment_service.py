@@ -216,19 +216,36 @@ class PaymentService:
     @staticmethod
     @transaction.atomic
     def _confirm_payment(payment: Payment, payment_id: str, signature: str):
-        """Atomically mark payment as captured and booking as confirmed."""
-        from bookings.services.booking_email_service import BookingEmailService
-        
-        payment.status = "captured"
-        payment.razorpay_payment_id = payment_id
-        payment.razorpay_signature = signature
-        payment.save(update_fields=[
+        """
+        Atomically mark payment as captured and booking as confirmed.
+        Uses select_for_update() row lock to guarantee idempotency and thread-safety
+        when concurrent webhooks and user callbacks occur simultaneously.
+        """
+        from bookings.tasks import process_booking_confirmation_task
+
+        # Acquire row lock
+        locked_payment = (
+            Payment.objects.select_for_update()
+            .select_related("booking")
+            .get(id=payment.id)
+        )
+
+        if locked_payment.status == "captured":
+            logger.info("Payment %s already captured. Skipping duplicate confirmation.", locked_payment.id)
+            return
+
+        locked_payment.status = "captured"
+        locked_payment.razorpay_payment_id = payment_id
+        locked_payment.razorpay_signature = signature
+        locked_payment.save(update_fields=[
             "status", "razorpay_payment_id", "razorpay_signature", "updated_at"
         ])
 
-        booking = payment.booking
+        booking = locked_payment.booking
         booking.status = "confirmed"
         booking.save(update_fields=["status"])
-        
-        # Trigger confirmation email asynchronously via Celery after transaction commits
-        BookingEmailService.send_booking_confirmation_async(booking.id, payment_id=payment_id)
+
+        # Trigger confirmation email and QR generation asynchronously via Celery after transaction commits
+        transaction.on_commit(
+            lambda: process_booking_confirmation_task.delay(str(booking.id), payment_id=payment_id)
+        )

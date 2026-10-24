@@ -466,4 +466,17 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 
+# Celery Beat Periodic Task Schedules
+CELERY_BEAT_SCHEDULE = {
+    "cleanup-expired-pending-bookings-every-15-mins": {
+        "task": "bookings.tasks.cleanup_expired_bookings_task",
+        "schedule": 900.0,  # Runs every 15 minutes
+    },
+    "reconcile-pending-payments-every-10-mins": {
+        "task": "payments.tasks.reconcile_pending_payments_task",
+        "schedule": 600.0,  # Runs every 10 minutes
+    },
+}
+
+
 
