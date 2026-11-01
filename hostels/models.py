@@ -8,6 +8,8 @@ from Hbackend.utils import (
 )
 from Hbackend.imagekit_storage import ImageKitStorage
 from decimal import Decimal
+import os
+from django.utils.text import slugify
 from django.core.validators import MinValueValidator, MaxValueValidator
 from Hbackend.base_models import SoftDeleteModel
 
@@ -276,37 +278,47 @@ class HostelTypeImage(SoftDeleteModel):
         return dict(Hostel.HostelType.choices).get(self.hostel_type)
 
 
+def hostel_image_upload_path(instance, filename):
+    hostel = getattr(instance, "hostel", None)
+    if not hostel and getattr(instance, "hostel_id", None):
+        hostel = Hostel.objects.filter(id=instance.hostel_id).first()
+    hostel_name = slugify(hostel.name) if (hostel and getattr(hostel, "name", None)) else "hostel"
+    ext = os.path.splitext(filename)[1].lower() or ".webp"
+    base = os.path.splitext(os.path.basename(filename))[0]
+    return f"hostels/{hostel_name}/{hostel_name}-{base}{ext}"
+
+
 class HostelImage(SoftDeleteModel):
     hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE, related_name="images")
     image = models.ImageField(
-        upload_to="hostels/", max_length=500, validators=[validate_image_size]
+        upload_to=hostel_image_upload_path, max_length=500, validators=[validate_image_size]
     )
     image2 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
+        null=True, blank=True, upload_to=hostel_image_upload_path, max_length=500, validators=[validate_image_size]
     )
     image3 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
+        null=True, blank=True, upload_to=hostel_image_upload_path, max_length=500, validators=[validate_image_size]
     )
     image4 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
+        null=True, blank=True, upload_to=hostel_image_upload_path, max_length=500, validators=[validate_image_size]
     )
     image5 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
+        null=True, blank=True, upload_to=hostel_image_upload_path, max_length=500, validators=[validate_image_size]
     )
     image6 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
+        null=True, blank=True, upload_to=hostel_image_upload_path, max_length=500, validators=[validate_image_size]
     )
     image7 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
+        null=True, blank=True, upload_to=hostel_image_upload_path, max_length=500, validators=[validate_image_size]
     )
     image8 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
+        null=True, blank=True, upload_to=hostel_image_upload_path, max_length=500, validators=[validate_image_size]
     )
     image9 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
+        null=True, blank=True, upload_to=hostel_image_upload_path, max_length=500, validators=[validate_image_size]
     )
     image10 = models.ImageField(
-        null=True, blank=True, upload_to="hostels/", max_length=500, validators=[validate_image_size]
+        null=True, blank=True, upload_to=hostel_image_upload_path, max_length=500, validators=[validate_image_size]
     )
 
     alt_text = models.CharField(max_length=255)
@@ -341,28 +353,73 @@ class HostelImage(SoftDeleteModel):
         self.provider = StorageSettings.get_active_provider()
 
         service = ImageUploadService()
+        hostel_obj = getattr(self, "hostel", None)
+        if not hostel_obj and getattr(self, "hostel_id", None):
+            hostel_obj = Hostel.objects.filter(id=self.hostel_id).first()
+
+        if hostel_obj and getattr(hostel_obj, "name", None):
+            hostel_slug = slugify(hostel_obj.name)
+        elif hostel_obj and getattr(hostel_obj, "slug", None):
+            hostel_slug = hostel_obj.slug
+        else:
+            hostel_slug = f"hostel-{getattr(self, 'hostel_id', 'unknown')}"
+
+        folder = f"hostels/{hostel_slug}"
+
         for field_name in fields:
             field_file = getattr(self, field_name)
             # Process only if it's a new file and not already a URL
             if field_file and hasattr(field_file, "file") and not str(field_file).startswith("http"):
                 try:
-                    # Folder naming: hostels/<id>
-                    folder = f"hostels/{self.hostel_id}"
-                    result = service.upload_image(field_file, field_file.name, folder=folder)
+                    orig_name = getattr(field_file, "name", field_name)
+                    ext = os.path.splitext(orig_name)[1] or ".webp"
+                    meaningful_name = f"{hostel_slug}-{field_name}{ext}"
+                    result = service.upload_image(field_file, meaningful_name, folder=folder)
                     setattr(self, field_name, result["url"])
                     # Update provider from actual result (may differ if fallback triggered)
                     self.provider = result["provider"]
-                except Exception:
-                    # If the service fails completely, we still call super().save()
-                    # which will use the default storage backend as a last resort.
+                except Exception as e:
+                    print(f"DEBUG: HostelImage upload failed for {field_name}: {e}")
                     pass
 
         # We skip process_image_fields because our service handles the upload,
         # and URLs shouldn't be processed for WebP conversion again.
         super().save(*args, **kwargs)
 
+    def delete_files_from_storage(self):
+        """Hard delete all populated image files from remote storage (ImageKit / Cloudinary)."""
+        from Hbackend.imagekit_storage import ImageKitStorage
+        from Hbackend.cloudinary_storage import CloudinaryStorage
+        ik_storage = ImageKitStorage()
+        cl_storage = CloudinaryStorage()
+
+        fields = [
+            "image", "image2", "image3", "image4", "image5",
+            "image6", "image7", "image8", "image9", "image10",
+        ]
+        for field_name in fields:
+            val = getattr(self, field_name)
+            if val:
+                val_str = str(val)
+                try:
+                    if self.provider == "cloudinary" or "res.cloudinary.com" in val_str:
+                        cl_storage.delete(val_str)
+                    else:
+                        ik_storage.delete(val_str)
+                except Exception as e:
+                    print(f"DEBUG: Error deleting hostel image {val_str}: {e}")
+
+    def delete(self, *args, **kwargs):
+        self.delete_files_from_storage()
+        super().hard_delete(*args, **kwargs)
+
+    def hard_delete(self, *args, **kwargs):
+        self.delete_files_from_storage()
+        super().hard_delete(*args, **kwargs)
+
     def __str__(self):
         return f"{self.hostel.name} Image"
+
 
 
 class DefaultHostelImage(models.Model):

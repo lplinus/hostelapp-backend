@@ -51,6 +51,8 @@ ALLOWED_HOSTS = [
     "www.hostelin.online",
 ]
 
+# ALLOWED_HOSTS = ['*']
+
 
 # Application definition
 

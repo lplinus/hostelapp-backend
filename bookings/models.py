@@ -153,18 +153,13 @@ class BookingOTP(models.Model):
 
 class HostelInquiry(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    hostel = models.ForeignKey(
-        Hostel, on_delete=models.CASCADE, related_name="inquiries_bookings"
-    )
-    user = models.ForeignKey(
-        User, on_delete=models.SET_NULL, related_name="hostel_inquiries", null=True, blank=True
-    )
+    hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE, related_name="inquiries_bookings" )
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, related_name="hostel_inquiries", null=True, blank=True )
     guest_name = models.CharField(max_length=255)
     guest_email = models.EmailField()
     mobile_number = models.CharField(max_length=15)
     message = models.TextField(blank=True, null=True)
-    status = models.CharField(
-        max_length=20,
+    status = models.CharField(max_length=20,
         choices=[
             ("pending", "Pending"),
             ("enquired", "Enquired"),
@@ -172,7 +167,7 @@ class HostelInquiry(models.Model):
             ("completed", "Completed"),
         ],
         default="pending",
-    )
+         )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

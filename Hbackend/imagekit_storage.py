@@ -34,6 +34,11 @@ class ImageKitStorage(Storage):
                 elif img.mode != "RGB":
                     img = img.convert("RGB")
 
+                # Downscale ultra-high resolution images (> 2560px) to prevent exceeding ImageKit 25MP limit
+                max_dim = 2560
+                if img.width > max_dim or img.height > max_dim:
+                    img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+
                 buffer = BytesIO()
                 img.save(buffer, format="WEBP", quality=80)
                 buffer.seek(0)
@@ -96,35 +101,48 @@ class ImageKitStorage(Storage):
             return
 
         try:
-            # Extract path from URL if necessary
-            path_val = name
+            # Strip query params if any
+            clean_name = str(name).split("?")[0].strip()
             endpoint = settings.IMAGEKIT_URL_ENDPOINT.rstrip("/")
-            if name.startswith("http"):
-                if name.startswith(endpoint):
-                    path_val = name[len(endpoint) :].lstrip("/")
-                else:
-                    return
 
-            # For SDK 5.x (Stainless), it's best to split path into folder and name
+            if clean_name.startswith("http"):
+                if clean_name.startswith(endpoint):
+                    path_val = clean_name[len(endpoint) :].lstrip("/")
+                else:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(clean_name)
+                    path_parts = parsed.path.strip("/").split("/")
+                    endpoint_id = endpoint.split("/")[-1]
+                    if path_parts and path_parts[0] == endpoint_id:
+                        path_parts = path_parts[1:]
+                    path_val = "/".join(path_parts)
+            else:
+                path_val = clean_name.lstrip("/")
+
+            filename = os.path.basename(path_val)
             folder = os.path.dirname(path_val)
             if not folder.startswith("/"):
                 folder = "/" + folder
-            filename = os.path.basename(path_val)
 
-            # Search for the file to get its file_id
-            # Using keyword arguments as per SDK 5.x
-            files = self.client.files.list(name=filename, path=folder)
+            # Search using client.assets.list in imagekitio 5.x
+            matched_files = []
+            try:
+                matched_files = list(self.client.assets.list(search_query=f'name="{filename}"'))
+            except Exception:
+                try:
+                    matched_files = list(self.client.assets.list(path=folder if folder else "/"))
+                except Exception:
+                    pass
 
-            # Since files is a ListResponse, we iterate or access [0]
-            # Stainless returns a Paginator/List object
-            for file in files:
-                if file.name == filename and (
-                    file.folder_path == folder or file.folder_path == folder.rstrip("/")
-                ):
-                    self.client.files.delete(file.file_id)
+            for file in matched_files:
+                f_name = getattr(file, "name", None)
+                f_id = getattr(file, "file_id", None)
+                if f_name == filename and f_id:
+                    self.client.files.delete(f_id)
                     print(
-                        f"DEBUG: Deleted file {path_val} (ID: {file.file_id}) from ImageKit"
+                        f"DEBUG: Deleted file {path_val} (ID: {f_id}) from ImageKit"
                     )
-                    return  # Exit after deleting first match
+                    return
         except Exception as e:
             print(f"DEBUG: ImageKit delete failed for {name}: {e}")
+

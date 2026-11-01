@@ -59,6 +59,11 @@ def convert_to_webp(image_field, quality=80):
         elif img.mode != "RGB":
             img = img.convert("RGB")
 
+        # Downscale ultra-high resolution images (> 2560px) to prevent exceeding ImageKit 25MP limit
+        max_dim = 2560
+        if img.width > max_dim or img.height > max_dim:
+            img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+
         # Save as WebP into memory
         buffer = BytesIO()
         img.save(buffer, format="WEBP", quality=quality)
@@ -66,11 +71,17 @@ def convert_to_webp(image_field, quality=80):
 
         # Build new filename with .webp extension
         old_name = image_field.name
-        old_path = image_field.path if hasattr(image_field, 'path') and image_field.path else None
+        
+        # Safely determine local filesystem path (cloud storages like Cloudinary/ImageKit raise NotImplementedError)
+        old_path = None
+        try:
+            old_path = image_field.path
+        except (NotImplementedError, AttributeError, Exception):
+            old_path = None
         
         base_name = os.path.splitext(os.path.basename(old_name))[0]
         upload_to = os.path.dirname(old_name)
-        new_name = os.path.join(upload_to, f"{base_name}.webp")
+        new_name = os.path.join(upload_to, f"{base_name}.webp").replace("\\", "/")
 
         # Replace the file content
         image_field.save(new_name, ContentFile(buffer.read()), save=False)
@@ -80,7 +91,7 @@ def convert_to_webp(image_field, quality=80):
             try:
                 if os.path.exists(old_path) and not old_path.lower().endswith('.webp'):
                     os.remove(old_path)
-            except (NotImplementedError, Exception) as e:
+            except Exception as e:
                 print(f"DEBUG: Failed to delete old file: {e}")
 
         print(f"DEBUG: Successfully converted to WebP: {new_name}")
@@ -116,12 +127,12 @@ def delete_old_image_files(instance, field_names):
                     instance._meta.get_field(field_name).storage.delete(old_file.name)
                 except Exception:
                     # Fallback to os.remove if it's a local path
-                    if hasattr(old_file, 'path'):
-                        try:
-                            if os.path.exists(old_file.path):
-                                os.remove(old_file.path)
-                        except (NotImplementedError, Exception):
-                            pass
+                    try:
+                        old_file_path = getattr(old_file, 'path', None)
+                        if old_file_path and os.path.exists(old_file_path):
+                            os.remove(old_file_path)
+                    except (NotImplementedError, AttributeError, Exception):
+                        pass
     except Exception:
         pass
 

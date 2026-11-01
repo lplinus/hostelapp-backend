@@ -143,12 +143,7 @@ class BookingOTPService:
                 password=brevo_config.get('EMAIL_HOST_PASSWORD', getattr(settings, 'EMAIL_HOST_PASSWORD', '')),
                 use_tls=brevo_config.get('EMAIL_USE_TLS', getattr(settings, 'EMAIL_USE_TLS', True)),
             )
-            msg = EmailMultiAlternatives(
-                subject=subject,
-                body=plain_message,
-                from_email=from_email,
-                to=[clean_email],
-                connection=connection,
+            msg = EmailMultiAlternatives(subject=subject,body=plain_message,from_email=from_email,to=[clean_email],connection=connection,
             )
             msg.attach_alternative(html_message, "text/html")
             msg.send(fail_silently=False)

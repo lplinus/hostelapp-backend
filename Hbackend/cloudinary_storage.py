@@ -33,6 +33,11 @@ class CloudinaryStorage(Storage):
                 elif img.mode != "RGB":
                     img = img.convert("RGB")
 
+                # Downscale ultra-high resolution images (> 2560px)
+                max_dim = 2560
+                if img.width > max_dim or img.height > max_dim:
+                    img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+
                 buffer = BytesIO()
                 img.save(buffer, format="WEBP", quality=80)
                 buffer.seek(0)

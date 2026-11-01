@@ -31,6 +31,26 @@ admin.site.site_header = "hostelin"
 admin.site.site_title = "myhostel admin"
 admin.site.index_title = "Welcome to myhostel admin Portal"
 
+_original_get_app_list = admin.site.get_app_list
+
+
+def _custom_get_app_list(request, app_label=None):
+    app_list = _original_get_app_list(request, app_label)
+    # Order: Users (accounts) at the top, then hostels, hotels, vacation rentals directly below
+    priority_order = {
+        "accounts": 1,
+        "hostels": 2,
+        "hotels": 3,
+        "vacanationrentals": 4,
+    }
+    return sorted(
+        app_list,
+        key=lambda app: (priority_order.get(app["app_label"], 100), app["name"].lower())
+    )
+
+
+admin.site.get_app_list = _custom_get_app_list
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     # path("myhostelsadmin/", admin.site.urls),
