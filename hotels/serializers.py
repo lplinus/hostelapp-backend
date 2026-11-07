@@ -210,10 +210,19 @@ class HotelBookingSerializer(serializers.ModelSerializer):
     """Read serializer for complete booking data with decomposed relations."""
     hotel_name = serializers.CharField(source="hotel.name", read_only=True)
     room_type_name = serializers.CharField(source="room_type.name", read_only=True)
+    owner_name = serializers.CharField(source="owner.username", read_only=True)
+    owner_email = serializers.EmailField(source="owner.email", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     guest_details = HotelGuestSerializer(read_only=True)
     payment_details = HotelPaymentSerializer(read_only=True)
     cancellation_details = HotelCancellationSerializer(read_only=True)
+
+    # Flattened read-only fields for unified dashboard compatibility
+    guest_name = serializers.CharField(source="guest_details.guest_name", read_only=True)
+    guest_email = serializers.CharField(source="guest_details.guest_email", read_only=True)
+    mobile_number = serializers.CharField(source="guest_details.mobile_number", read_only=True)
+    payment_method = serializers.CharField(source="payment_details.payment_method", read_only=True)
+    payment_status = serializers.CharField(source="payment_details.payment_status", read_only=True)
 
     class Meta:
         model = HotelBooking
@@ -223,6 +232,9 @@ class HotelBookingSerializer(serializers.ModelSerializer):
             "user",
             "hotel",
             "hotel_name",
+            "owner",
+            "owner_name",
+            "owner_email",
             "room_type",
             "room_type_name",
             "check_in_date",
@@ -232,6 +244,11 @@ class HotelBookingSerializer(serializers.ModelSerializer):
             "total_amount",
             "status",
             "status_display",
+            "guest_name",
+            "guest_email",
+            "mobile_number",
+            "payment_method",
+            "payment_status",
             "guest_details",
             "payment_details",
             "cancellation_details",
@@ -255,7 +272,8 @@ class HotelBookingCreateSerializer(serializers.Serializer):
     mobile_number = serializers.CharField(max_length=20)
     adults_count = serializers.IntegerField(default=1, min_value=1)
     children_count = serializers.IntegerField(default=0, min_value=0)
-    special_requests = serializers.CharField(required=False, allow_blank=True)
+    special_requests = serializers.CharField(required=False, allow_blank=True, default="")
+    otp = serializers.CharField(required=False, allow_blank=True, max_length=10, default="")
 
     # Payment
     payment_method = serializers.ChoiceField(
@@ -305,6 +323,66 @@ class HotelBookingCreateSerializer(serializers.Serializer):
                 {"number_of_rooms": f"Only {room_type.rooms_available} room(s) available for {room_type.name}."}
             )
 
+        # 4. OTP Verification Pipeline (mirroring hostel booking system)
+        from datetime import timedelta
+        from django.db.models import Q
+        from bookings.models import BookingOTP, Booking
+        from bookings.services.booking_otp_service import BookingOTPService
+
+        guest_email = data.get("guest_email", "").strip().lower()
+        mobile_number = data.get("mobile_number", "").strip()
+        otp_code = str(data.get("otp") or "").strip()
+
+        request = self.context.get("request")
+        user = request.user if request and request.user.is_authenticated else None
+
+        is_verified = False
+
+        # Criterion A: Logged-in verified user
+        if user and (getattr(user, "is_email_verified", False) or getattr(user, "is_phone_verified", False)):
+            is_verified = True
+
+        # Criterion B: Explicit OTP code supplied in payload
+        if not is_verified and otp_code:
+            v_email = BookingOTPService.verify_booking_email_otp(guest_email, otp_code)
+            v_phone = BookingOTPService.verify_booking_otp(mobile_number, otp_code) if not v_email else False
+            if v_email or v_phone:
+                is_verified = True
+            else:
+                raise serializers.ValidationError({"otp": "Invalid or expired OTP verification code."})
+
+        # Criterion C: Verified in preceding step via BookingOTP
+        if not is_verified:
+            recent_cutoff = timezone.now() - timedelta(minutes=30)
+            has_recent_otp = BookingOTP.objects.filter(
+                is_used=True,
+                created_at__gte=recent_cutoff,
+            ).filter(
+                Q(email__iexact=guest_email) | Q(phone=mobile_number)
+            ).exists()
+            if has_recent_otp:
+                is_verified = True
+
+        # Criterion D: Smart verification skip (prior confirmed hotel or hostel reservation)
+        if not is_verified:
+            has_prior_hotel = HotelBooking.objects.filter(
+                Q(guest_details__mobile_number=mobile_number) | Q(guest_details__guest_email__iexact=guest_email),
+                status__in=[HotelBooking.BookingStatus.CONFIRMED, HotelBooking.BookingStatus.CHECKED_IN, HotelBooking.BookingStatus.CHECKED_OUT],
+            ).exists()
+
+            has_prior_hostel = Booking.objects.filter(
+                Q(mobile_number=mobile_number) | Q(guest_email__iexact=guest_email),
+                status__in=["confirmed", "completed"],
+            ).exists()
+
+            if has_prior_hotel or has_prior_hostel:
+                is_verified = True
+
+        if not is_verified:
+            raise serializers.ValidationError(
+                {"verification": "OTP verification required before confirming the booking. Please verify your phone or email."}
+            )
+
         data["hotel"] = hotel
         data["room_type"] = room_type
         return data
@@ -318,6 +396,14 @@ class HotelBookingCreateSerializer(serializers.Serializer):
         num_rooms = validated_data.get("number_of_rooms", 1)
         request = self.context.get("request")
         user = request.user if request and request.user.is_authenticated else None
+        if not user:
+            guest_email = validated_data.get("guest_email")
+            mobile_number = validated_data.get("mobile_number")
+            from accounts.models import User
+            if guest_email:
+                user = User.objects.filter(email__iexact=guest_email).first()
+            if not user and mobile_number:
+                user = User.objects.filter(phone=mobile_number).first()
 
         # Calculate pricing
         nights = (check_out - check_in).days
@@ -328,9 +414,11 @@ class HotelBookingCreateSerializer(serializers.Serializer):
         total_amount = base_amount + tax_amount
 
         # 1. Create Core Booking
+        owner = getattr(hotel, "owner", None)
         booking = HotelBooking.objects.create(
             user=user,
             hotel=hotel,
+            owner=owner,
             room_type=room_type,
             check_in_date=check_in,
             check_out_date=check_out,

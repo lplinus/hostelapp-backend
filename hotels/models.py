@@ -38,6 +38,14 @@ class Hotel(SoftDeleteModel):
         NON_REFUNDABLE = "non_refundable", "Non-Refundable"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="hotels",
+        null=True,
+        blank=True,
+        help_text="Hotel Owner",
+    )
     name = models.CharField(max_length=255)
     slug = models.SlugField(unique=True, max_length=280)
     tagline = models.CharField(max_length=255, blank=True, null=True, help_text="e.g. 5-Star Waterfront Luxury")
@@ -326,6 +334,14 @@ class HotelBooking(SoftDeleteModel):
         help_text="Registered user who made the reservation (if authenticated)",
     )
     hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="bookings")
+    owner = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="hotel_owner_bookings",
+        null=True,
+        blank=True,
+        help_text="Hotel Owner receiving the booking",
+    )
     room_type = models.ForeignKey(HotelRoomType, on_delete=models.CASCADE, related_name="bookings")
 
     # Dates & Counts
@@ -361,6 +377,9 @@ class HotelBooking(SoftDeleteModel):
             while HotelBooking.all_objects.filter(booking_reference=self.booking_reference).exists():
                 random_suffix = secrets.token_hex(3).upper()
                 self.booking_reference = f"HTL-{random_suffix}"
+
+        if self.hotel and not self.owner_id:
+            self.owner = getattr(self.hotel, 'owner', None)
 
         if self.check_in_date and self.check_out_date:
             delta = (self.check_out_date - self.check_in_date).days

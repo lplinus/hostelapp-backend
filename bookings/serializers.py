@@ -4,6 +4,8 @@ from .models import Booking, HostelInquiry
 
 class BookingSerializer(serializers.ModelSerializer):
     hostel_name = serializers.ReadOnlyField(source="hostel.name")
+    owner_name = serializers.ReadOnlyField(source="owner.username")
+    owner_email = serializers.ReadOnlyField(source="owner.email")
     room_category = serializers.SerializerMethodField()
     payment_id = serializers.SerializerMethodField()
     payment_status = serializers.SerializerMethodField()
@@ -11,7 +13,7 @@ class BookingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = "__all__"
-        read_only_fields = ("user", "payment_status")
+        read_only_fields = ("user", "owner", "payment_status")
 
     def validate_guest_name(self, value):
         if not value or len(value.strip()) < 3:

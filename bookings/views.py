@@ -72,6 +72,10 @@ class BookingViewSet(viewsets.ModelViewSet):
                 user = User.objects.filter(phone=mobile_number).first()
 
         save_kwargs = {"cooldown_until": cooldown_time}
+        hostel = serializer.validated_data.get("hostel")
+        if hostel and hostel.owner:
+            save_kwargs["owner"] = hostel.owner
+
         if user:
             save_kwargs["user"] = user
             if not serializer.validated_data.get("guest_name"):
@@ -95,7 +99,7 @@ class BookingViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         obj = serializer.instance
         if not self.request.user.is_staff:
-            if obj.user != self.request.user and obj.hostel.owner != self.request.user:
+            if obj.user != self.request.user and obj.owner != self.request.user and obj.hostel.owner != self.request.user:
                 raise PermissionDenied("You do not own this booking.")
         serializer.save()
 
@@ -103,6 +107,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_staff:
             if (
                 instance.user != self.request.user
+                and instance.owner != self.request.user
                 and instance.hostel.owner != self.request.user
             ):
                 raise PermissionDenied("You do not own this booking.")
@@ -133,7 +138,7 @@ class BookingViewSet(viewsets.ModelViewSet):
 
         from django.db.models import Q
 
-        return super().get_queryset().filter(Q(user=user) | Q(hostel__owner=user))
+        return super().get_queryset().filter(Q(user=user) | Q(owner=user) | Q(hostel__owner=user))
 
     @decorators.action(
         detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated]
@@ -142,9 +147,11 @@ class BookingViewSet(viewsets.ModelViewSet):
         """
         Custom action to retrieve all bookings for hostels owned by the authenticated user.
         """
+        from django.db.models import Q
+
         bookings = (
-            Booking.objects.filter(hostel__owner=request.user)
-            .select_related("user", "hostel", "room_type")
+            Booking.objects.filter(Q(owner=request.user) | Q(hostel__owner=request.user))
+            .select_related("user", "owner", "hostel", "room_type")
             .order_by("-created_at")
         )
         serializer = self.get_serializer(bookings, many=True)
@@ -178,7 +185,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         except Exception:
             return Response({"error": "Invalid booking ID format"}, status=400)
 
-        if not request.user.is_staff and booking.hostel.owner != request.user:
+        if not request.user.is_staff and booking.owner != request.user and booking.hostel.owner != request.user:
             raise PermissionDenied(
                 "You do not have permission to check-in this booking."
             )

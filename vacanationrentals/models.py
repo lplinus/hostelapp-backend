@@ -141,6 +141,14 @@ class VacationRental(SoftDeleteModel):
     allows_parties = models.BooleanField(default=False)
     custom_rules = models.TextField(blank=True, null=True, help_text="Additional host house rules")
 
+    # Caretaker & On-Site Host Contact
+    caretaker_name = models.CharField(max_length=150, blank=True, null=True, help_text="On-site caretaker / property manager name")
+    caretaker_number = models.CharField(max_length=20, blank=True, null=True, help_text="Caretaker contact phone / mobile number")
+
+    # Wi-Fi & Internet Credentials
+    wifi_name = models.CharField(max_length=100, blank=True, null=True, help_text="Wi-Fi network name / SSID")
+    wifi_password = models.CharField(max_length=100, blank=True, null=True, help_text="Wi-Fi password for guests")
+
     # Amenities
     amenities = models.ManyToManyField("amenities.Amenity", related_name="vacation_rentals", blank=True)
 
@@ -282,6 +290,14 @@ class VacationRentalBooking(SoftDeleteModel):
         related_name="hosted_rental_bookings",
         help_text="Host receiving the booking",
     )
+    owner = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.CASCADE,
+        related_name="vacation_rental_owner_bookings",
+        null=True,
+        blank=True,
+        help_text="Owner / Host receiving the booking",
+    )
 
     # Dates & Nights
     check_in_date = models.DateField(db_index=True)
@@ -316,8 +332,13 @@ class VacationRentalBooking(SoftDeleteModel):
                 random_suffix = secrets.token_hex(3).upper()
                 self.booking_reference = f"VRB-{random_suffix}"
 
-        if self.rental and not self.host_id:
-            self.host = self.rental.host
+        if self.rental:
+            if not self.host_id:
+                self.host = self.rental.host
+            if not self.owner_id:
+                self.owner = self.rental.host or self.host
+        elif self.host and not self.owner_id:
+            self.owner = self.host
 
         if self.check_in_date and self.check_out_date:
             delta = (self.check_out_date - self.check_in_date).days

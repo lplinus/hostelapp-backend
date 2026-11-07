@@ -90,6 +90,13 @@ urlpatterns = [
         name="dashboard_stats",
     ),
     path(
+        "api/dashboard/all-bookings/",
+        __import__(
+            "accounts.views.user_views", fromlist=["OwnerAllBookingsView"]
+        ).OwnerAllBookingsView.as_view(),
+        name="dashboard_all_bookings",
+    ),
+    path(
         "api/users/me/",
         __import__(
             "accounts.views.user_views", fromlist=["UserMeView"]

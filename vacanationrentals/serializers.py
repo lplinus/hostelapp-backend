@@ -154,6 +154,10 @@ class VacationRentalSerializer(serializers.ModelSerializer):
             "allows_smoking",
             "allows_parties",
             "custom_rules",
+            "caretaker_name",
+            "caretaker_number",
+            "wifi_name",
+            "wifi_password",
             "amenities",
             "amenities_list",
             "rating_avg",
@@ -213,6 +217,10 @@ class VacationRentalWriteSerializer(serializers.ModelSerializer):
             "allows_smoking",
             "allows_parties",
             "custom_rules",
+            "caretaker_name",
+            "caretaker_number",
+            "wifi_name",
+            "wifi_password",
             "amenities",
             "og_image",
             "meta_title",
@@ -227,10 +235,20 @@ class VacationRentalWriteSerializer(serializers.ModelSerializer):
 class VacationRentalBookingSerializer(serializers.ModelSerializer):
     """Read serializer for complete booking record with decomposed details."""
     rental_title = serializers.CharField(source="rental.title", read_only=True)
+    host_name = serializers.CharField(source="host.username", read_only=True)
+    owner_name = serializers.CharField(source="owner.username", read_only=True)
+    owner_email = serializers.EmailField(source="owner.email", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     guest_details = VacationRentalGuestSerializer(read_only=True)
     pricing_details = VacationRentalPaymentSerializer(read_only=True)
     cancellation_details = VacationRentalCancellationSerializer(read_only=True)
+
+    # Flattened read-only fields for unified dashboard compatibility
+    guest_name = serializers.CharField(source="guest_details.guest_name", read_only=True)
+    guest_email = serializers.CharField(source="guest_details.guest_email", read_only=True)
+    mobile_number = serializers.CharField(source="guest_details.mobile_number", read_only=True)
+    payment_method = serializers.CharField(source="pricing_details.payment_method", read_only=True)
+    payment_status = serializers.CharField(source="pricing_details.payment_status", read_only=True)
 
     class Meta:
         model = VacationRentalBooking
@@ -241,12 +259,21 @@ class VacationRentalBookingSerializer(serializers.ModelSerializer):
             "rental",
             "rental_title",
             "host",
+            "host_name",
+            "owner",
+            "owner_name",
+            "owner_email",
             "check_in_date",
             "check_out_date",
             "number_of_nights",
             "total_price",
             "status",
             "status_display",
+            "guest_name",
+            "guest_email",
+            "mobile_number",
+            "payment_method",
+            "payment_status",
             "guest_details",
             "pricing_details",
             "cancellation_details",
@@ -270,7 +297,8 @@ class VacationRentalBookingCreateSerializer(serializers.Serializer):
     children = serializers.IntegerField(default=0, min_value=0)
     infants = serializers.IntegerField(default=0, min_value=0)
     pets = serializers.IntegerField(default=0, min_value=0)
-    special_requests = serializers.CharField(required=False, allow_blank=True)
+    special_requests = serializers.CharField(required=False, allow_blank=True, default="")
+    otp = serializers.CharField(required=False, allow_blank=True, max_length=10, default="")
 
     # Payment
     payment_method = serializers.ChoiceField(
@@ -353,6 +381,66 @@ class VacationRentalBookingCreateSerializer(serializers.Serializer):
                 {"check_in_date": "One or more selected dates are blocked by the host."}
             )
 
+        # 7. OTP Verification Pipeline (mirroring hostel booking system)
+        from datetime import timedelta
+        from django.db.models import Q
+        from bookings.models import BookingOTP, Booking
+        from bookings.services.booking_otp_service import BookingOTPService
+
+        guest_email = data.get("guest_email", "").strip().lower()
+        mobile_number = data.get("mobile_number", "").strip()
+        otp_code = str(data.get("otp") or "").strip()
+
+        request = self.context.get("request")
+        user = request.user if request and request.user.is_authenticated else None
+
+        is_verified = False
+
+        # Criterion A: Logged-in verified user
+        if user and (getattr(user, "is_email_verified", False) or getattr(user, "is_phone_verified", False)):
+            is_verified = True
+
+        # Criterion B: Explicit OTP code supplied in payload
+        if not is_verified and otp_code:
+            v_email = BookingOTPService.verify_booking_email_otp(guest_email, otp_code)
+            v_phone = BookingOTPService.verify_booking_otp(mobile_number, otp_code) if not v_email else False
+            if v_email or v_phone:
+                is_verified = True
+            else:
+                raise serializers.ValidationError({"otp": "Invalid or expired OTP verification code."})
+
+        # Criterion C: Verified in preceding step via BookingOTP
+        if not is_verified:
+            recent_cutoff = timezone.now() - timedelta(minutes=30)
+            has_recent_otp = BookingOTP.objects.filter(
+                is_used=True,
+                created_at__gte=recent_cutoff,
+            ).filter(
+                Q(email__iexact=guest_email) | Q(phone=mobile_number)
+            ).exists()
+            if has_recent_otp:
+                is_verified = True
+
+        # Criterion D: Smart verification skip (prior confirmed rental or hostel booking)
+        if not is_verified:
+            has_prior_rental = VacationRentalBooking.objects.filter(
+                Q(guest_details__mobile_number=mobile_number) | Q(guest_details__guest_email__iexact=guest_email),
+                status__in=[VacationRentalBooking.BookingStatus.CONFIRMED, VacationRentalBooking.BookingStatus.CHECKED_IN, VacationRentalBooking.BookingStatus.COMPLETED],
+            ).exists()
+
+            has_prior_hostel = Booking.objects.filter(
+                Q(mobile_number=mobile_number) | Q(guest_email__iexact=guest_email),
+                status__in=["confirmed", "completed"],
+            ).exists()
+
+            if has_prior_rental or has_prior_hostel:
+                is_verified = True
+
+        if not is_verified:
+            raise serializers.ValidationError(
+                {"verification": "OTP verification required before confirming the booking. Please verify your phone or email."}
+            )
+
         data["rental"] = rental
         return data
 
@@ -365,6 +453,14 @@ class VacationRentalBookingCreateSerializer(serializers.Serializer):
         children = validated_data.get("children", 0)
         request = self.context.get("request")
         user = request.user if request and request.user.is_authenticated else None
+        if not user:
+            guest_email = validated_data.get("guest_email")
+            mobile_number = validated_data.get("mobile_number")
+            from accounts.models import User
+            if guest_email:
+                user = User.objects.filter(email__iexact=guest_email).first()
+            if not user and mobile_number:
+                user = User.objects.filter(phone=mobile_number).first()
 
         # ── Pricing Engine ───────────────────────────────────────────────────
         nights = (check_out - check_in).days
@@ -406,10 +502,12 @@ class VacationRentalBookingCreateSerializer(serializers.Serializer):
         )
 
         # 1. Create Core Booking
+        owner = rental.host
         booking = VacationRentalBooking.objects.create(
             user=user,
             rental=rental,
-            host=rental.host,
+            host=owner,
+            owner=owner,
             check_in_date=check_in,
             check_out_date=check_out,
             number_of_nights=nights,

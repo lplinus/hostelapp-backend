@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     VacationRentalViewSet,
     VacationRentalAvailabilityViewSet,
+    VacationRentalImageViewSet,
     VacationRentalBookingViewSet,
 )
 
@@ -11,6 +12,7 @@ app_name = "vacanationrentals"
 router = DefaultRouter()
 router.register("properties", VacationRentalViewSet, basename="vacation-rental")
 router.register("availability", VacationRentalAvailabilityViewSet, basename="vacation-rental-availability")
+router.register("images", VacationRentalImageViewSet, basename="vacation-rental-image")
 router.register("bookings", VacationRentalBookingViewSet, basename="vacation-rental-booking")
 
 # Allow direct root mappings like /api/vacanationrentals/

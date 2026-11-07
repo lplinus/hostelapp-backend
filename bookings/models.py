@@ -23,6 +23,15 @@ class Booking(SoftDeleteModel):
         User, on_delete=models.CASCADE, related_name="bookings", null=True, blank=True
     )
 
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="hostel_owner_bookings",
+        null=True,
+        blank=True,
+        help_text="Hostel owner receiving the booking",
+    )
+
     hostel = models.ForeignKey(
         Hostel, on_delete=models.CASCADE, related_name="bookings"
     )
@@ -92,6 +101,11 @@ class Booking(SoftDeleteModel):
 
     cooldown_until = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if self.hostel and not self.owner_id:
+            self.owner = self.hostel.owner
+        super().save(*args, **kwargs)
 
     def __str__(self):
         name = self.guest_name or (
