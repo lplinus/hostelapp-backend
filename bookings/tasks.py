@@ -199,3 +199,152 @@ def batch_process_bookings_task(booking_ids):
             results[str(b_id)] = f"Failed to dispatch: {str(e)}"
     return results
 
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=10,
+    ignore_result=True,
+    name="bookings.tasks.send_booking_otp_sms_task",
+)
+def send_booking_otp_sms_task(self, phone, code):
+    """
+    Celery background task to dispatch Twilio SMS OTP for booking verification.
+    Retries up to 3 times on transient network errors.
+    """
+    import os
+    from twilio.rest import Client
+
+    try:
+        account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+        auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+        from_number = os.getenv("TWILIO_FROM_NUMBER")
+
+        if not account_sid or not auth_token or not from_number:
+            logger.warning("[Celery] Twilio credentials missing, using console fallback")
+            logger.info(f"[Celery] Booking OTP for {phone} is {code}")
+            return f"Console fallback for {phone}"
+
+        client = Client(account_sid, auth_token)
+        message_body = (
+            f"Your Hostel In booking verification code is: {code}. Valid for 10 minutes."
+        )
+
+        to_phone = str(phone).strip()
+        if len(to_phone) == 10 and not to_phone.startswith("+"):
+            to_phone = "+91" + to_phone
+        elif not to_phone.startswith("+") and not to_phone.startswith("0"):
+            to_phone = "+" + to_phone
+
+        client.messages.create(
+            body=message_body,
+            from_=from_number,
+            to=to_phone,
+        )
+        logger.info(f"[Celery] Twilio SMS OTP sent successfully to {to_phone}")
+        return f"Twilio SMS sent to {to_phone}"
+
+    except Exception as exc:
+        logger.error(f"[Celery] Error sending SMS OTP to {phone}: {exc}")
+        raise self.retry(exc=exc)
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=10,
+    ignore_result=True,
+    name="bookings.tasks.send_booking_otp_email_task",
+)
+def send_booking_otp_email_task(self, email, code, guest_name=None):
+    """
+    Celery background task to dispatch Email OTP for booking verification via Brevo / SMTP.
+    Retries up to 3 times on transient network/SMTP failures.
+    """
+    from django.conf import settings
+    from django.core.mail import EmailMultiAlternatives, get_connection
+
+    clean_email = email.strip().lower()
+    subject = "Hostel In - Booking Verification Code"
+    name_display = guest_name or "Guest"
+
+    html_message = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; }}
+        .card {{ max-width: 500px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.04); }}
+        .header {{ background: #003580; padding: 24px; text-align: center; color: #ffffff; }}
+        .header h1 {{ margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 1px; }}
+        .body {{ padding: 32px 24px; text-align: center; }}
+        .title {{ font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }}
+        .desc {{ font-size: 14px; color: #64748b; line-height: 1.5; margin-bottom: 24px; }}
+        .otp-box {{ display: inline-block; background: #f0f7ff; border: 2px dashed #003580; color: #003580; font-size: 32px; font-weight: 800; letter-spacing: 8px; padding: 14px 28px; border-radius: 12px; margin: 12px 0; font-family: monospace; }}
+        .expiry {{ font-size: 12px; color: #94a3b8; margin-top: 12px; }}
+        .footer {{ background: #f8fafc; padding: 16px 24px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; }}
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="header">
+          <h1>HOSTEL IN</h1>
+        </div>
+        <div class="body">
+          <div class="title">Verify Your Email Address</div>
+          <div class="desc">Hi {name_display}, use the 6-digit verification code below to verify your email and complete your booking.</div>
+          <div class="otp-box">{code}</div>
+          <div class="expiry">This code is valid for 10 minutes. Please do not share this code with anyone.</div>
+        </div>
+        <div class="footer">
+          If you did not request this booking verification, please ignore this email.<br>&copy; 2026 Hostel In. All rights reserved.
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+    plain_message = f"Hi {name_display},\n\nYour Hostel In booking verification code is: {code}\nThis code is valid for 10 minutes.\n\nHostel In Team"
+
+    brevo_config = getattr(settings, "BREVO_EMAIL_CONFIG", {})
+    from_email = getattr(
+        settings,
+        "BREVO_FROM_EMAIL",
+        getattr(settings, "DEFAULT_FROM_EMAIL", "support@hostelin.online"),
+    )
+
+    try:
+        connection = get_connection(
+            host=brevo_config.get(
+                "EMAIL_HOST", getattr(settings, "EMAIL_HOST", "smtp-relay.brevo.com")
+            ),
+            port=brevo_config.get(
+                "EMAIL_PORT", getattr(settings, "EMAIL_PORT", 587)
+            ),
+            username=brevo_config.get(
+                "EMAIL_HOST_USER", getattr(settings, "EMAIL_HOST_USER", "")
+            ),
+            password=brevo_config.get(
+                "EMAIL_HOST_PASSWORD", getattr(settings, "EMAIL_HOST_PASSWORD", "")
+            ),
+            use_tls=brevo_config.get(
+                "EMAIL_USE_TLS", getattr(settings, "EMAIL_USE_TLS", True)
+            ),
+        )
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=plain_message,
+            from_email=from_email,
+            to=[clean_email],
+            connection=connection,
+        )
+        msg.attach_alternative(html_message, "text/html")
+        msg.send(fail_silently=False)
+        logger.info(f"[Celery] Booking Email OTP sent successfully to {clean_email}")
+        return f"Email OTP sent to {clean_email}"
+
+    except Exception as exc:
+        logger.error(f"[Celery] Error sending Email OTP to {clean_email}: {exc}")
+        raise self.retry(exc=exc)
+
+

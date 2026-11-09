@@ -185,6 +185,11 @@ class HotelImageViewSet(viewsets.ModelViewSet):
             return Response({"detail": "hotel id is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         hotel = get_object_or_404(Hotel, id=hotel_id)
+        room_type_id = request.data.get("room_type")
+        room_type = None
+        if room_type_id:
+            room_type = HotelRoomType.objects.filter(id=room_type_id, hotel=hotel).first()
+
         image_files = []
         for key in ["images", "images[]", "image"]:
             if key in request.FILES:
@@ -201,6 +206,7 @@ class HotelImageViewSet(viewsets.ModelViewSet):
         for idx, file_obj in enumerate(image_files):
             img = HotelImage.objects.create(
                 hotel=hotel,
+                room_type=room_type,
                 image=file_obj,
                 alt_text=f"{hotel.name} Photo {existing_count + idx + 1}",
                 order=existing_count + idx,
@@ -290,6 +296,15 @@ class HotelBookingViewSet(viewsets.ModelViewSet):
         serializer = HotelBookingCreateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
+
+        # Offload concurrent hotel booking processing, notifications, and QR generation to Celery
+        from django.db import transaction
+        from .tasks import process_hotel_booking_task
+
+        transaction.on_commit(
+            lambda: process_hotel_booking_task.delay(str(booking.id))
+        )
+
         response_serializer = HotelBookingSerializer(booking, context={"request": request})
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 

@@ -251,6 +251,15 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
         serializer = VacationRentalBookingCreateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
+
+        # Offload vacation rental booking flow, date locking, notifications, and QR generation to Celery
+        from django.db import transaction
+        from .tasks import process_vacation_rental_booking_task
+
+        transaction.on_commit(
+            lambda: process_vacation_rental_booking_task.delay(str(booking.id))
+        )
+
         response_serializer = VacationRentalBookingSerializer(booking, context={"request": request})
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -412,6 +421,14 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
                 defaults={"is_available": False, "reason": VacationRentalAvailability.BlockReason.BOOKED},
             )
             curr += timedelta(days=1)
+
+        # Offload confirmation notifications and QR generation asynchronously via Celery
+        from django.db import transaction
+        from .tasks import send_vacation_rental_confirmation_task
+
+        transaction.on_commit(
+            lambda: send_vacation_rental_confirmation_task.delay(str(booking.id))
+        )
 
         serializer = VacationRentalBookingSerializer(booking, context={"request": request})
         return Response(serializer.data)

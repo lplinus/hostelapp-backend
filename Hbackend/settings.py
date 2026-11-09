@@ -474,6 +474,14 @@ CELERY_BEAT_SCHEDULE = {
         "task": "bookings.tasks.cleanup_expired_bookings_task",
         "schedule": 900.0,  # Runs every 15 minutes
     },
+    "cleanup-expired-vacation-rental-bookings-every-15-mins": {
+        "task": "vacanationrentals.tasks.cleanup_expired_vacation_rental_bookings_task",
+        "schedule": 900.0,  # Runs every 15 minutes
+    },
+    "cleanup-expired-hotel-bookings-every-15-mins": {
+        "task": "hotels.tasks.cleanup_expired_hotel_bookings_task",
+        "schedule": 900.0,  # Runs every 15 minutes
+    },
     "reconcile-pending-payments-every-10-mins": {
         "task": "payments.tasks.reconcile_pending_payments_task",
         "schedule": 600.0,  # Runs every 10 minutes

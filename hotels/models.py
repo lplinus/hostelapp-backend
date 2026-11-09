@@ -211,6 +211,13 @@ class HotelRoomType(SoftDeleteModel):
         super().save(*args, **kwargs)
         self.hotel.update_starting_price()
 
+    def delete(self, *args, **kwargs):
+        hotel = self.hotel
+        res = super().delete(*args, **kwargs)
+        if hotel:
+            hotel.update_starting_price()
+        return res
+
 
 class HotelImage(SoftDeleteModel):
     hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="images")
