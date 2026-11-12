@@ -38,10 +38,9 @@ SECRET_KEY = config("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# if ENVIRONMENT == 'development':
-DEBUG = True
-# else:
-# DEBUG = False
+# Controlled from .env. Defaults to True so local development is unchanged;
+# set DEBUG=False in the production .env.
+DEBUG = config("DEBUG", default=True, cast=bool)
 
 
 ALLOWED_HOSTS = [
@@ -49,6 +48,7 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "hostelin.online",
     "www.hostelin.online",
+    'api.hostelin.online',
 ]
 
 # ALLOWED_HOSTS = ['*']
@@ -70,13 +70,14 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_filters",
     "drf_spectacular",
+    
     # Local Apps
     "accounts",
     "amenities",
     "locations",
     "hostels",
     "rooms",
-    "bookings",
+    "bookings.apps.BookingsConfig",
     "reviews",
     "payments",
     "seo",
@@ -94,6 +95,9 @@ INSTALLED_APPS = [
     "orders",
     "vendors",
     "hostelservices",
+
+    # Guest Profile (placed above hotels)
+    "guestprofile.apps.GuestprofileConfig",
 
     # Hotels & Vacation Rentals
     "hotels",
@@ -141,15 +145,13 @@ WSGI_APPLICATION = "Hbackend.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.mysql",
+        "ENGINE": "django.db.backends.postgresql",
         "NAME": config("DB_NAME"),
         "USER": config("DB_USER"),
         "PASSWORD": config("DB_PASSWORD"),
         "HOST": config("DB_HOST"),
         "PORT": config("DB_PORT"),
-        "OPTIONS": {
-            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
+       
     }
 }
 
@@ -287,6 +289,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "https://hostelin.online",
     "https://www.hostelin.online",
+    "https://api.hostelin.online",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -300,6 +303,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:3000",
     "https://hostelin.online",
     "https://www.hostelin.online",
+    "https://api.hostelin.online",
 ]
 
 

@@ -45,10 +45,22 @@ class PaymentService:
         except Booking.DoesNotExist:
             raise PaymentError("Booking not found.")
 
-        if booking.status != "pending":
+        if booking.status not in ["pending", "payment_initiated"]:
             raise PaymentError(
-                f"Booking is already '{booking.status}'. Only pending bookings can be paid."
+                f"Booking is already '{booking.status}'. Only pending or payment initiated bookings can be paid."
             )
+
+        # ── EXTEND EXPIRY ON PAYMENT INITIATION ──
+        # When user clicks Pay Now / initiates payment, extend expiry by another 20 minutes
+        # and transition status to payment_initiated (capped at max 45 mins from creation)
+        from django.utils import timezone
+        from datetime import timedelta
+        now = timezone.now()
+        extended_expiry = now + timedelta(minutes=20)
+        max_expiry = (booking.created_at or now) + timedelta(minutes=45)
+        booking.expires_at = min(extended_expiry, max_expiry)
+        booking.status = "payment_initiated"
+        booking.save(update_fields=["status", "expires_at"])
 
         # ── FIXED Booking Fee of ₹59 as per user requirement ──
         # The remainder will be collected at the property.

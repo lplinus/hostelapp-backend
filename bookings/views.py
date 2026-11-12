@@ -42,12 +42,17 @@ class BookingViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         from .services.recaptcha_service import RecaptchaService
         from django.db import transaction
+        from rooms.models import RoomType
 
         RecaptchaService.verify(
             token=request.data.get("recaptcha_token"),
             action="booking",
         )
         with transaction.atomic():
+            # Lock the room type row to prevent concurrent overbooking
+            room_type_id = request.data.get("room_type")
+            if room_type_id:
+                RoomType.objects.select_for_update().filter(pk=room_type_id).first()
             return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
@@ -85,6 +90,9 @@ class BookingViewSet(viewsets.ModelViewSet):
             if not serializer.validated_data.get("mobile_number") and getattr(user, "phone", None):
                 save_kwargs["mobile_number"] = user.phone
 
+        # Initial status is always decided by the server, never by the client payload
+        save_kwargs["status"] = "pending"
+
         # If it's a visit request, set initial status as confirmed
         if serializer.validated_data.get("booking_type") == "visit":
             save_kwargs["status"] = "confirmed"
@@ -98,9 +106,17 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         obj = serializer.instance
-        if not self.request.user.is_staff:
-            if obj.user != self.request.user and obj.owner != self.request.user and obj.hostel.owner != self.request.user:
-                raise PermissionDenied("You do not own this booking.")
+        user = self.request.user
+        if not user.is_staff:
+            is_property_owner = obj.owner == user or obj.hostel.owner == user
+            if not is_property_owner:
+                if obj.user != user:
+                    raise PermissionDenied("You do not own this booking.")
+                # The guest who made the booking may only cancel it.
+                # Confirming, completing or re-pricing is for the property owner / staff.
+                changes = serializer.validated_data
+                if set(changes.keys()) - {"status"} or changes.get("status") != "cancelled":
+                    raise PermissionDenied("You can only cancel your own booking.")
         serializer.save()
 
     def perform_destroy(self, instance):
@@ -121,6 +137,8 @@ class BookingViewSet(viewsets.ModelViewSet):
             "send_email_otp",
             "verify_email_otp",
             "confirm_pay_at_property",
+            "initiate_payment",
+            "check_availability",
         ]:
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
@@ -130,7 +148,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             return super().get_queryset()
 
-        if self.action in ["confirm_pay_at_property"]:
+        if self.action in ["confirm_pay_at_property", "initiate_payment"]:
             return super().get_queryset()
 
         if user.is_anonymous:
@@ -363,9 +381,9 @@ class BookingViewSet(viewsets.ModelViewSet):
         from .tasks import process_booking_confirmation_task
 
         with transaction.atomic():
-            booking = self.get_object()
+            booking = Booking.objects.select_for_update().get(pk=self.kwargs.get("pk"))
 
-            if booking.status != "pending":
+            if booking.status not in ["pending", "payment_initiated"]:
                 return Response(
                     {"error": "Only pending bookings can be confirmed."},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -386,6 +404,169 @@ class BookingViewSet(viewsets.ModelViewSet):
                 "message": "Booking confirmed with Pay at Property option.",
                 "booking_id": booking.id,
             }
+        )
+
+    @decorators.action(
+        detail=True, methods=["post"], permission_classes=[permissions.AllowAny]
+    )
+    def initiate_payment(self, request, pk=None):
+        """
+        Transition a pending booking to 'payment_initiated' and extend expiry by +20 minutes
+        (capped at 45 minutes total from creation).
+        """
+        from django.utils import timezone
+        from datetime import timedelta
+        from django.db import transaction
+
+        with transaction.atomic():
+            booking = Booking.objects.select_for_update().get(pk=self.kwargs.get("pk"))
+
+            if booking.status not in ["pending", "payment_initiated"]:
+                return Response(
+                    {"error": f"Booking is '{booking.status}'. Cannot initiate payment."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            now = timezone.now()
+            extended_expiry = now + timedelta(minutes=20)
+            max_expiry = (booking.created_at or now) + timedelta(minutes=45)
+            booking.expires_at = min(extended_expiry, max_expiry)
+            booking.status = "payment_initiated"
+            booking.save(update_fields=["status", "expires_at"])
+
+        return Response(
+            {
+                "message": "Payment initiated. Expiry extended.",
+                "booking_id": str(booking.id),
+                "status": booking.status,
+                "expires_at": booking.expires_at.isoformat() if booking.expires_at else None,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @decorators.action(
+        detail=False, methods=["get", "post"], permission_classes=[permissions.AllowAny]
+    )
+    def check_availability(self, request):
+        """
+        Check bed-level availability for a specific room type and date range.
+        Returns whether beds are available, available count, and any error message.
+        """
+        data = request.data if request.method == "POST" else request.query_params
+        room_type_id = data.get("room_type_id") or data.get("room_type")
+        check_in_str = data.get("check_in")
+        check_out_str = data.get("check_out")
+        guests_count = int(data.get("guests_count") or data.get("guests") or 1)
+
+        if not room_type_id:
+            return Response(
+                {"available": False, "error": "room_type_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not check_in_str or not check_out_str:
+            return Response(
+                {"available": False, "error": "check_in and check_out dates are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from datetime import datetime
+        from django.utils import timezone
+        from rooms.models import RoomType, Bed
+
+        try:
+            if isinstance(check_in_str, str):
+                check_in = datetime.strptime(check_in_str.split("T")[0], "%Y-%m-%d").date()
+            else:
+                check_in = check_in_str
+            if isinstance(check_out_str, str):
+                check_out = datetime.strptime(check_out_str.split("T")[0], "%Y-%m-%d").date()
+            else:
+                check_out = check_out_str
+        except (ValueError, TypeError):
+            return Response(
+                {"available": False, "error": "Invalid date format. Use YYYY-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        today = timezone.now().date()
+        if check_in < today:
+            return Response(
+                {"available": False, "error": "Check-in date cannot be in the past."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if check_in >= check_out or (check_out - check_in).days < 1:
+            return Response(
+                {"available": False, "error": "Minimum stay is 1 day. Check-out date must be strictly after check-in date."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            room_type = RoomType.objects.get(id=room_type_id, is_available=True)
+        except RoomType.DoesNotExist:
+            return Response(
+                {"available": False, "error": "Room type not found or is unavailable."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Duplicate reservation check for logged-in user or guest info
+        user = request.user if request and request.user.is_authenticated else None
+        guest_email = (data.get("guest_email") or data.get("email") or (user.email if user else "")).strip().lower()
+        mobile_number = (data.get("mobile_number") or data.get("phone") or (user.phone if user else "")).strip()
+
+        from django.db.models import Q
+        dup_query = Q()
+        if user:
+            dup_query |= Q(user=user)
+        if mobile_number:
+            dup_query |= Q(mobile_number=mobile_number)
+        if guest_email:
+            dup_query |= Q(guest_email__iexact=guest_email)
+
+        if dup_query and getattr(room_type, "hostel", None):
+            existing_booking = (
+                Booking.objects.filter(dup_query, hostel=room_type.hostel)
+                .filter(check_in__lt=check_out, check_out__gt=check_in)
+                .exclude(status="cancelled")
+                .first()
+            )
+            if existing_booking:
+                dup_msg = (
+                    f"A booking already exists for this guest at {room_type.hostel.name} "
+                    f"during the selected dates ({check_in} to {check_out}). "
+                    f"You cannot have multiple active bookings at the same hostel for overlapping dates."
+                )
+                return Response(
+                    {
+                        "available": False,
+                        "available_beds": 0,
+                        "requested_beds": guests_count,
+                        "room_type_id": room_type.id,
+                        "room_type_name": f"{room_type.get_room_category_display()} - {room_type.get_sharing_type_display()}",
+                        "error": dup_msg,
+                        "message": dup_msg,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+        available_beds = Bed.count_available_beds(room_type, check_in, check_out)
+        is_available = available_beds >= guests_count
+
+        return Response(
+            {
+                "available": is_available,
+                "available_beds": available_beds,
+                "requested_beds": guests_count,
+                "room_type_id": room_type.id,
+                "room_type_name": f"{room_type.get_room_category_display()} - {room_type.get_sharing_type_display()}",
+                "message": (
+                    f"{available_beds} bed(s) available for the selected dates."
+                    if is_available
+                    else f"Sorry, only {available_beds} bed(s) available for selected dates. Fully booked."
+                ),
+            },
+            status=status.HTTP_200_OK,
         )
 
 

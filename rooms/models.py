@@ -82,6 +82,67 @@ class Bed(SoftDeleteModel):
     bed_number = models.TextField(null=True, blank=True, help_text="Comma-separated bed numbers, e.g., B1, B2, B3")
     is_available = models.BooleanField(default=True)
 
+    # ── Date-Range Overlap Helpers ──────────────────────────────────────────
+    # These use half-open intervals [check_in, check_out) with strict < / >
+    # so same-day turnover (Guest A out June 5, Guest B in June 5) is allowed.
+
+    ACTIVE_BOOKING_STATUSES = ("pending", "payment_initiated", "confirmed")
+
+    def is_available_for_dates(self, check_in, check_out, exclude_booking_id=None):
+        """
+        Check if this specific bed is free for the given date range.
+        Returns True if no overlapping active booking exists.
+        """
+        from bookings.models import Booking
+
+        qs = Booking.objects.filter(
+            room_type=self.room_type,
+            status__in=self.ACTIVE_BOOKING_STATUSES,
+            check_in__lt=check_out,   # existing starts before new guest leaves
+            check_out__gt=check_in,   # existing ends after new guest arrives
+        )
+        if exclude_booking_id:
+            qs = qs.exclude(pk=exclude_booking_id)
+        return not qs.exists()
+
+    @staticmethod
+    def find_available_bed(room_type, check_in, check_out):
+        """
+        Auto-assign: find the first available bed in a room type for dates.
+        Returns the Bed instance, or None if fully booked.
+        """
+        for bed in room_type.beds.filter(is_available=True):
+            if bed.is_available_for_dates(check_in, check_out):
+                return bed
+        return None
+
+    @staticmethod
+    def count_available_beds(room_type, check_in, check_out):
+        """
+        How many beds are free in this room type for the given date range?
+        Compares total active beds against number of overlapping active bookings.
+        """
+        from bookings.models import Booking
+
+        total_beds_count = room_type.beds.filter(is_available=True).count()
+
+        # If no individual bed rows exist, fall back to the counter field
+        if total_beds_count == 0:
+            bed_record = room_type.beds.first()
+            if bed_record and bed_record.total_beds:
+                total_beds_count = bed_record.total_beds
+            else:
+                return 0
+
+        booked_count = Booking.objects.filter(
+            room_type=room_type,
+            status__in=Bed.ACTIVE_BOOKING_STATUSES,
+            check_in__lt=check_out,
+            check_out__gt=check_in,
+        ).count()
+
+        return max(0, total_beds_count - booked_count)
+
     def __str__(self):
         return (
             f"{self.room_type.hostel.name} | "

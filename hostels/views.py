@@ -104,6 +104,18 @@ class HostelViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 
+    def perform_update(self, serializer):
+        user = self.request.user
+        if not user.is_staff and serializer.instance.owner != user:
+            raise PermissionDenied("You do not own this hostel.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if not user.is_staff and instance.owner != user:
+            raise PermissionDenied("You do not own this hostel.")
+        instance.delete()
+
     # ── Owner's hostel list ──────────────────────────────────────────
     @decorators.action(
         detail=False,

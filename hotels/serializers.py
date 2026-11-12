@@ -303,8 +303,8 @@ class HotelBookingCreateSerializer(serializers.Serializer):
         today = timezone.now().date()
         if check_in < today:
             raise serializers.ValidationError({"check_in_date": "Check-in date cannot be in the past."})
-        if check_in >= check_out:
-            raise serializers.ValidationError({"check_out_date": "Check-out date must be strictly after check-in date."})
+        if check_in >= check_out or (check_out - check_in).days < 1:
+            raise serializers.ValidationError({"check_out_date": "Minimum stay is 1 day. Check-out date must be strictly after check-in date."})
 
         # 2. Hotel & Room Type verification
         try:
@@ -317,15 +317,61 @@ class HotelBookingCreateSerializer(serializers.Serializer):
         except HotelRoomType.DoesNotExist:
             raise serializers.ValidationError({"room_type_id": "Selected room type is not available for this hotel."})
 
-        # 3. Room inventory validation
-        if room_type.rooms_available < rooms_requested:
+        # 3. Dynamic room inventory overlap check (date-range aware)
+        #    Uses half-open intervals [check_in, check_out) with strict < / >
+        #    so same-day turnover is allowed.
+        from django.db.models import Sum, Value
+        from django.db.models.functions import Coalesce
+
+        ACTIVE_STATUSES = [
+            HotelBooking.BookingStatus.PENDING,
+            HotelBooking.BookingStatus.PAYMENT_INITIATED,
+            HotelBooking.BookingStatus.CONFIRMED,
+            HotelBooking.BookingStatus.CHECKED_IN,
+        ]
+        overlapping_rooms = HotelBooking.objects.filter(
+            room_type=room_type,
+            status__in=ACTIVE_STATUSES,
+            check_in_date__lt=check_out,    # existing starts before new guest leaves
+            check_out_date__gt=check_in,    # existing ends after new guest arrives
+        ).aggregate(
+            total=Coalesce(Sum("number_of_rooms"), Value(0))
+        )["total"]
+
+        available_rooms = room_type.total_rooms - overlapping_rooms
+        if available_rooms < rooms_requested:
             raise serializers.ValidationError(
-                {"number_of_rooms": f"Only {room_type.rooms_available} room(s) available for {room_type.name}."}
+                {"number_of_rooms": f"Only {max(0, available_rooms)} room(s) of type '{room_type.name}' available for {check_in} to {check_out}."}
             )
 
-        # 4. OTP Verification Pipeline (mirroring hostel booking system)
-        from datetime import timedelta
+        # 4. Duplicate guest booking check for same hotel and overlapping dates
         from django.db.models import Q
+        guest_email = data.get("guest_email", "").strip().lower()
+        mobile_number = data.get("mobile_number", "").strip()
+
+        duplicate_query = Q()
+        if mobile_number:
+            duplicate_query |= Q(guest_details__mobile_number=mobile_number)
+        if guest_email:
+            duplicate_query |= Q(guest_details__guest_email__iexact=guest_email)
+
+        if duplicate_query:
+            existing_hotel_bookings = (
+                HotelBooking.objects.filter(duplicate_query, hotel=hotel)
+                .filter(check_in_date__lt=check_out, check_out_date__gt=check_in)
+                .exclude(status__in=[HotelBooking.BookingStatus.CANCELLED, HotelBooking.BookingStatus.CHECKED_OUT])
+            )
+            if self.instance:
+                existing_hotel_bookings = existing_hotel_bookings.exclude(pk=self.instance.pk)
+
+            if existing_hotel_bookings.exists():
+                raise serializers.ValidationError(
+                    f"A booking already exists for this guest at {hotel.name} during the selected dates ({check_in} to {check_out}). "
+                    "You cannot have multiple active bookings at the same hotel for overlapping dates."
+                )
+
+        # 5. OTP Verification Pipeline (mirroring hostel booking system)
+        from datetime import timedelta
         from bookings.models import BookingOTP, Booking
         from bookings.services.booking_otp_service import BookingOTPService
 
@@ -390,7 +436,7 @@ class HotelBookingCreateSerializer(serializers.Serializer):
     @transaction.atomic
     def create(self, validated_data):
         hotel = validated_data["hotel"]
-        room_type = validated_data["room_type"]
+        room_type = HotelRoomType.objects.select_for_update().get(pk=validated_data["room_type"].pk)
         check_in = validated_data["check_in_date"]
         check_out = validated_data["check_out_date"]
         num_rooms = validated_data.get("number_of_rooms", 1)
@@ -404,6 +450,30 @@ class HotelBookingCreateSerializer(serializers.Serializer):
                 user = User.objects.filter(email__iexact=guest_email).first()
             if not user and mobile_number:
                 user = User.objects.filter(phone=mobile_number).first()
+
+        # Re-verify availability after locking (prevents race condition between
+        # two simultaneous requests that both passed the serializer validate())
+        from django.db.models import Sum, Value
+        from django.db.models.functions import Coalesce
+
+        ACTIVE_STATUSES = [
+            HotelBooking.BookingStatus.PENDING,
+            HotelBooking.BookingStatus.PAYMENT_INITIATED,
+            HotelBooking.BookingStatus.CONFIRMED,
+            HotelBooking.BookingStatus.CHECKED_IN,
+        ]
+        overlapping_rooms = HotelBooking.objects.filter(
+            room_type=room_type,
+            status__in=ACTIVE_STATUSES,
+            check_in_date__lt=check_out,
+            check_out_date__gt=check_in,
+        ).aggregate(
+            total=Coalesce(Sum("number_of_rooms"), Value(0))
+        )["total"]
+        if (room_type.total_rooms - overlapping_rooms) < num_rooms:
+            raise serializers.ValidationError(
+                {"number_of_rooms": "Rooms are no longer available for the selected dates. Please try again."}
+            )
 
         # Calculate pricing
         nights = (check_out - check_in).days

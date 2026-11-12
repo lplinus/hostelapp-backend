@@ -116,20 +116,61 @@ class DashboardStatsView(APIView):
         )
         total_revenue = float(hostel_rev) + float(hotel_rev) + float(rental_rev)
 
-        # 7. Unified Monthly Chart Data (combining all 3 booking streams)
+        # 7. Unified Monthly Chart Data & Daily Timeline Data per Stream (Hostels, Hotels, Vacation Rentals, All)
         monthly_map = defaultdict(int)
-        for b in hostel_bookings.only("created_at"):
+        from datetime import datetime
+
+        def init_timeline_map():
+            return defaultdict(lambda: {"confirmed": 0, "cancelled": 0, "total": 0})
+
+        stream_timelines = {
+            "all": init_timeline_map(),
+            "hostel": init_timeline_map(),
+            "hotel": init_timeline_map(),
+            "vacation_rental": init_timeline_map(),
+        }
+
+        # Track hostel bookings
+        for b in hostel_bookings.only("created_at", "status"):
             if b.created_at:
-                key = b.created_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                monthly_map[key] += 1
-        for b in hotel_bookings.only("created_at"):
+                m_key = b.created_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                monthly_map[m_key] += 1
+
+                d_key = b.created_at.strftime("%Y-%m-%d")
+                for s in ["all", "hostel"]:
+                    stream_timelines[s][d_key]["total"] += 1
+                    if b.status == "cancelled":
+                        stream_timelines[s][d_key]["cancelled"] += 1
+                    else:
+                        stream_timelines[s][d_key]["confirmed"] += 1
+
+        # Track hotel bookings
+        for b in hotel_bookings.only("created_at", "status"):
             if b.created_at:
-                key = b.created_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                monthly_map[key] += 1
-        for b in rental_bookings.only("created_at"):
+                m_key = b.created_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                monthly_map[m_key] += 1
+
+                d_key = b.created_at.strftime("%Y-%m-%d")
+                for s in ["all", "hotel"]:
+                    stream_timelines[s][d_key]["total"] += 1
+                    if b.status == HotelBooking.BookingStatus.CANCELLED:
+                        stream_timelines[s][d_key]["cancelled"] += 1
+                    else:
+                        stream_timelines[s][d_key]["confirmed"] += 1
+
+        # Track vacation rental bookings
+        for b in rental_bookings.only("created_at", "status"):
             if b.created_at:
-                key = b.created_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                monthly_map[key] += 1
+                m_key = b.created_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                monthly_map[m_key] += 1
+
+                d_key = b.created_at.strftime("%Y-%m-%d")
+                for s in ["all", "vacation_rental"]:
+                    stream_timelines[s][d_key]["total"] += 1
+                    if b.status == VacationRentalBooking.BookingStatus.CANCELLED:
+                        stream_timelines[s][d_key]["cancelled"] += 1
+                    else:
+                        stream_timelines[s][d_key]["confirmed"] += 1
 
         sorted_months = sorted(monthly_map.keys())[-6:] if monthly_map else []
         chart_data = [
@@ -139,6 +180,61 @@ class DashboardStatsView(APIView):
             }
             for dt in sorted_months
         ]
+
+        def format_timeline(t_map):
+            sorted_dates = sorted(t_map.keys())
+            return [
+                {
+                    "date": date_str,
+                    "label": datetime.strptime(date_str, "%Y-%m-%d").strftime("%b %d"),
+                    "day": datetime.strptime(date_str, "%Y-%m-%d").strftime("%a"),
+                    "confirmed": t_map[date_str]["confirmed"],
+                    "cancelled": t_map[date_str]["cancelled"],
+                    "total": t_map[date_str]["total"],
+                }
+                for date_str in sorted_dates
+            ]
+
+        streams = {
+            "all": {
+                "total": total_bookings,
+                "cancelled": cancelled_bookings,
+                "confirmed": total_bookings - cancelled_bookings if total_bookings >= cancelled_bookings else active_bookings,
+                "properties": total_properties,
+                "rooms": total_rooms,
+                "revenue": round(total_revenue, 2),
+                "timeline": format_timeline(stream_timelines["all"]),
+            },
+            "hostel": {
+                "total": total_hostel,
+                "cancelled": cancelled_hostel,
+                "confirmed": total_hostel - cancelled_hostel if total_hostel >= cancelled_hostel else active_hostel,
+                "properties": hostels_count,
+                "rooms": hostel_rooms,
+                "revenue": round(float(hostel_rev), 2),
+                "timeline": format_timeline(stream_timelines["hostel"]),
+            },
+            "hotel": {
+                "total": total_hotel,
+                "cancelled": cancelled_hotel,
+                "confirmed": total_hotel - cancelled_hotel if total_hotel >= cancelled_hotel else active_hotel,
+                "properties": hotels_count,
+                "rooms": hotel_rooms,
+                "revenue": round(float(hotel_rev), 2),
+                "timeline": format_timeline(stream_timelines["hotel"]),
+            },
+            "vacation_rental": {
+                "total": total_rental,
+                "cancelled": cancelled_rental,
+                "confirmed": total_rental - cancelled_rental if total_rental >= cancelled_rental else active_rental,
+                "properties": rentals_count,
+                "rooms": rental_units,
+                "revenue": round(float(rental_rev), 2),
+                "timeline": format_timeline(stream_timelines["vacation_rental"]),
+            },
+        }
+
+        timeline = streams["all"]["timeline"]
 
         return Response(
             {
@@ -150,6 +246,8 @@ class DashboardStatsView(APIView):
                 "cancelled_bookings": cancelled_bookings,
                 "revenue": round(total_revenue, 2),
                 "chart_data": chart_data,
+                "timeline": timeline,
+                "streams": streams,
                 # Explicit domain breakdown for advanced dashboard widgets
                 "properties_breakdown": {
                     "hostels": hostels_count,

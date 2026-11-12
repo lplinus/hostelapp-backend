@@ -281,17 +281,34 @@ def send_hotel_booking_confirmation_task(self, booking_id, payment_id=None):
 @shared_task(
     name="hotels.tasks.cleanup_expired_hotel_bookings_task",
 )
-def cleanup_expired_hotel_bookings_task(expiry_minutes=30):
+def cleanup_expired_hotel_bookings_task(default_expiry_minutes=25):
     """
-    Celery task to automatically cancel stale pending hotel bookings older than `expiry_minutes`.
-    Restores room inventory for cancelled bookings to prevent blocked rooms.
+    Smarter cleanup logic following major platforms (Booking.com, Agoda):
+    
+    Only cancels/deletes a hotel booking when:
+    1. Status is still 'pending' or 'payment_initiated'
+    2. AND the booking has fully expired based on `expires_at` (or fallback cutoff_time if expires_at is null)
+    
+    Bookings in 'payment_initiated' status are protected until their extended +20 minute
+    window (up to 45 mins total) has elapsed, ensuring users completing payment
+    are not prematurely cancelled.
+    Restores room inventory for cancelled bookings atomically.
     """
-    cutoff_time = timezone.now() - timedelta(minutes=expiry_minutes)
+    from django.db.models import Q
+    now = timezone.now()
+    fallback_cutoff = now - timedelta(minutes=default_expiry_minutes)
+
+    stale_filter = (
+        Q(expires_at__isnull=False, expires_at__lte=now)
+        | Q(expires_at__isnull=True, created_at__lt=fallback_cutoff)
+    )
 
     stale_bookings = HotelBooking.objects.filter(
-        status=HotelBooking.BookingStatus.PENDING,
-        created_at__lt=cutoff_time,
-    ).select_related("room_type")
+        status__in=[
+            HotelBooking.BookingStatus.PENDING,
+            HotelBooking.BookingStatus.PAYMENT_INITIATED,
+        ],
+    ).filter(stale_filter).select_related("room_type")
 
     count = 0
     for booking in stale_bookings:

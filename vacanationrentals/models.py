@@ -45,7 +45,7 @@ class VacationRental(SoftDeleteModel):
 
     # Basic Info
     title = models.CharField(max_length=255)
-    slug = models.SlugField(unique=True, max_length=280)
+    slug = models.SlugField(unique=True, max_length=255)
     tagline = models.CharField(max_length=255, blank=True, null=True, help_text="e.g. Luxurious 3BHK Villa with Private Pool")
     description = models.TextField()
     short_description = models.CharField(max_length=300, blank=True, null=True)
@@ -262,6 +262,7 @@ class VacationRentalBooking(SoftDeleteModel):
     """
     class BookingStatus(models.TextChoices):
         PENDING_APPROVAL = "pending_approval", "Pending Host Approval"
+        PAYMENT_INITIATED = "payment_initiated", "Payment Initiated"
         CONFIRMED = "confirmed", "Confirmed"
         CHECKED_IN = "checked_in", "Checked In"
         COMPLETED = "completed", "Completed"
@@ -315,6 +316,13 @@ class VacationRentalBooking(SoftDeleteModel):
         db_index=True,
     )
 
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Expiry deadline for completing payment/confirmation (25 mins initial, +20 mins on payment initiation)",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -348,6 +356,14 @@ class VacationRentalBooking(SoftDeleteModel):
         if not self.pk and self.rental and not self.rental.instant_book:
             if self.status == VacationRentalBooking.BookingStatus.CONFIRMED:
                 self.status = VacationRentalBooking.BookingStatus.PENDING_APPROVAL
+
+        if not self.expires_at and self.status in [
+            VacationRentalBooking.BookingStatus.PENDING_APPROVAL,
+            VacationRentalBooking.BookingStatus.PAYMENT_INITIATED,
+        ]:
+            from django.utils import timezone
+            from datetime import timedelta
+            self.expires_at = timezone.now() + timedelta(minutes=25)
 
         super().save(*args, **kwargs)
 

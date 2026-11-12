@@ -246,22 +246,53 @@ def send_vacation_rental_confirmation_task(self, booking_id, payment_id=None):
 @shared_task(
     name="vacanationrentals.tasks.cleanup_expired_vacation_rental_bookings_task",
 )
-def cleanup_expired_vacation_rental_bookings_task(expiry_minutes=30):
+def cleanup_expired_vacation_rental_bookings_task(default_expiry_minutes=25):
     """
-    Celery task to automatically cancel stale pending bookings older than `expiry_minutes`.
-    Prevents abandoned reservations from holding calendar availability.
+    Smarter cleanup logic following major platforms (Airbnb, Vrbo):
+    
+    Only cancels/deletes a vacation rental booking when:
+    1. Status is still 'pending_approval' or 'payment_initiated'
+    2. AND the booking has fully expired based on `expires_at` (or fallback cutoff_time if expires_at is null)
+    
+    Bookings in 'payment_initiated' status are protected until their extended +20 minute
+    window (up to 45 mins total) has elapsed, ensuring users completing payment
+    are not prematurely cancelled.
+    Frees calendar dates for cancelled bookings.
     """
-    cutoff_time = timezone.now() - timedelta(minutes=expiry_minutes)
+    from django.db.models import Q
+    now = timezone.now()
+    fallback_cutoff = now - timedelta(minutes=default_expiry_minutes)
 
-    stale_bookings = VacationRentalBooking.objects.filter(
-        status=VacationRentalBooking.BookingStatus.PENDING_APPROVAL,
-        created_at__lt=cutoff_time,
+    stale_filter = (
+        Q(expires_at__isnull=False, expires_at__lte=now)
+        | Q(expires_at__isnull=True, created_at__lt=fallback_cutoff)
     )
 
-    count = stale_bookings.count()
+    stale_bookings = VacationRentalBooking.objects.filter(
+        status__in=[
+            VacationRentalBooking.BookingStatus.PENDING_APPROVAL,
+            VacationRentalBooking.BookingStatus.PAYMENT_INITIATED,
+        ],
+    ).filter(stale_filter)
+
+    count = 0
+    for booking in stale_bookings:
+        with transaction.atomic():
+            booking.status = VacationRentalBooking.BookingStatus.CANCELLED
+            booking.save(update_fields=["status"])
+
+            # Free the calendar dates if previously blocked
+            VacationRentalAvailability.objects.filter(
+                rental=booking.rental,
+                date__gte=booking.check_in_date,
+                date__lt=booking.check_out_date,
+                reason=VacationRentalAvailability.BlockReason.BOOKED,
+            ).delete()
+
+            count += 1
+
     if count > 0:
-        stale_bookings.update(status=VacationRentalBooking.BookingStatus.CANCELLED)
-        logger.info(f"[Celery] Cancelled {count} expired vacation rental bookings older than {expiry_minutes} mins.")
+        logger.info(f"[Celery] Cancelled and released dates for {count} expired vacation rental bookings.")
     else:
         logger.info("[Celery] No expired vacation rental bookings found.")
 

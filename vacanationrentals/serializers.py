@@ -329,8 +329,8 @@ class VacationRentalBookingCreateSerializer(serializers.Serializer):
         today = timezone.now().date()
         if check_in < today:
             raise serializers.ValidationError({"check_in_date": "Check-in date cannot be in the past."})
-        if check_in >= check_out:
-            raise serializers.ValidationError({"check_out_date": "Check-out date must be strictly after check-in date."})
+        if check_in >= check_out or (check_out - check_in).days < 1:
+            raise serializers.ValidationError({"check_out_date": "Minimum stay is 1 day. Check-out date must be strictly after check-in date."})
 
         # 2. Rental property validation
         try:
@@ -381,7 +381,33 @@ class VacationRentalBookingCreateSerializer(serializers.Serializer):
                 {"check_in_date": "One or more selected dates are blocked by the host."}
             )
 
-        # 7. OTP Verification Pipeline (mirroring hostel booking system)
+        # 7. Duplicate guest booking check for same vacation rental and overlapping dates
+        from django.db.models import Q
+        guest_email = data.get("guest_email", "").strip().lower()
+        mobile_number = data.get("mobile_number", "").strip()
+
+        duplicate_query = Q()
+        if mobile_number:
+            duplicate_query |= Q(guest_details__mobile_number=mobile_number)
+        if guest_email:
+            duplicate_query |= Q(guest_details__guest_email__iexact=guest_email)
+
+        if duplicate_query:
+            existing_vr_bookings = (
+                VacationRentalBooking.objects.filter(duplicate_query, rental=rental)
+                .filter(check_in_date__lt=check_out, check_out_date__gt=check_in)
+                .exclude(status__in=[VacationRentalBooking.BookingStatus.CANCELLED, VacationRentalBooking.BookingStatus.DECLINED])
+            )
+            if self.instance:
+                existing_vr_bookings = existing_vr_bookings.exclude(pk=self.instance.pk)
+
+            if existing_vr_bookings.exists():
+                raise serializers.ValidationError(
+                    f"A booking already exists for this guest at {rental.title} during the selected dates ({check_in} to {check_out}). "
+                    "You cannot have multiple active bookings at the same property for overlapping dates."
+                )
+
+        # 8. OTP Verification Pipeline (mirroring hostel booking system)
         from datetime import timedelta
         from django.db.models import Q
         from bookings.models import BookingOTP, Booking
@@ -446,7 +472,7 @@ class VacationRentalBookingCreateSerializer(serializers.Serializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        rental = validated_data["rental"]
+        rental = VacationRental.objects.select_for_update().get(pk=validated_data["rental"].pk)
         check_in = validated_data["check_in_date"]
         check_out = validated_data["check_out_date"]
         adults = validated_data.get("adults", 1)
@@ -461,6 +487,32 @@ class VacationRentalBookingCreateSerializer(serializers.Serializer):
                 user = User.objects.filter(email__iexact=guest_email).first()
             if not user and mobile_number:
                 user = User.objects.filter(phone=mobile_number).first()
+
+        # Re-verify availability after locking (prevents race condition between
+        # two simultaneous requests that both passed the serializer validate())
+        overlap_booking = (
+            VacationRentalBooking.objects.filter(rental=rental)
+            .filter(check_in_date__lt=check_out, check_out_date__gt=check_in)
+            .exclude(status__in=[
+                VacationRentalBooking.BookingStatus.CANCELLED,
+                VacationRentalBooking.BookingStatus.DECLINED,
+            ])
+        )
+        if overlap_booking.exists():
+            raise serializers.ValidationError(
+                {"check_in_date": "This property is no longer available for the selected dates. Please try again."}
+            )
+
+        blocked_dates = VacationRentalAvailability.objects.filter(
+            rental=rental,
+            date__gte=check_in,
+            date__lt=check_out,
+            is_available=False,
+        )
+        if blocked_dates.exists():
+            raise serializers.ValidationError(
+                {"check_in_date": "One or more selected dates have been blocked. Please try again."}
+            )
 
         # ── Pricing Engine ───────────────────────────────────────────────────
         nights = (check_out - check_in).days

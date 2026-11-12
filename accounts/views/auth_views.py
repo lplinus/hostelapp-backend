@@ -42,6 +42,28 @@ class RegisterView(APIView):
 
         user = AuthService.register_user(serializer.validated_data)
 
+        if user.role == "guest":
+            tokens = AuthService.get_tokens_for_user(user)
+            response_data = {
+                "message": "Account created successfully. Welcome to Hostel In!",
+                "user": UserProfileSerializer(user).data,
+                "access": tokens["access"],
+                "redirect_url": "/home/guestprofile",
+            }
+            response = Response(response_data, status=status.HTTP_201_CREATED)
+            AuthService.set_refresh_cookie(response, tokens["refresh"])
+            AuthService.set_access_cookie(response, tokens["access"])
+            AuthService.set_role_cookie(response, user.role)
+            response.set_cookie(
+                key="csrftoken",
+                value=get_token(request),
+                httponly=False,
+                samesite="Lax",
+                secure=False,
+                path="/",
+            )
+            return response
+
         return Response(
             {
                 "message": "Account created successfully. Please check your email for the verification code.",
@@ -180,11 +202,17 @@ class LoginView(APIView):
             "user": UserProfileSerializer(user).data,
         }
 
-        # Redirect logic based on role
-        if user.role == "vendor":
-            response_data["redirect_url"] = "/vendordashboard/vendors"
-        else:
+        # Redirect logic based on role priority: Guest -> Hostel Owner -> Vendor -> Service (future) -> None (Home)
+        if user.role == "guest":
+            response_data["redirect_url"] = "/home/guestprofile"
+        elif user.role == "hostel_owner":
             response_data["redirect_url"] = "/dashboard"
+        elif user.role == "vendor":
+            response_data["redirect_url"] = "/vendordashboard/vendors"
+        # elif user.role == "service":
+        #     response_data["redirect_url"] = "/servicedashboard"
+        else:
+            response_data["redirect_url"] = "/home"
 
         response = Response(response_data, status=status.HTTP_200_OK)
 

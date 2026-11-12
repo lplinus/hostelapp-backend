@@ -12,6 +12,7 @@ from Hbackend.base_models import SoftDeleteModel
 class Booking(SoftDeleteModel):
     STATUS_CHOICES = (
         ("pending", "Pending"),
+        ("payment_initiated", "Payment Initiated"),
         ("confirmed", "Confirmed"),
         ("cancelled", "Cancelled"),
         ("completed", "Completed"),
@@ -100,11 +101,25 @@ class Booking(SoftDeleteModel):
     )
 
     cooldown_until = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Expiry deadline for completing payment/confirmation (25 mins initial, +20 mins on payment initiation)",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Hostel Booking"
+        verbose_name_plural = "Hostel Bookings"
 
     def save(self, *args, **kwargs):
         if self.hostel and not self.owner_id:
             self.owner = self.hostel.owner
+        if not self.expires_at and self.status in ["pending", "payment_initiated"]:
+            from django.utils import timezone
+            from datetime import timedelta
+            self.expires_at = timezone.now() + timedelta(minutes=25)
         super().save(*args, **kwargs)
 
     def __str__(self):

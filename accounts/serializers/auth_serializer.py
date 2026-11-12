@@ -19,8 +19,16 @@ class RegisterSerializer(serializers.Serializer):
     phone = serializers.CharField(
         max_length=20, required=False, default="", allow_blank=True
     )
+    # Only self-service roles may be chosen at registration.
+    # "admin" / "superadmin" must be assigned by staff via Django admin.
     role = serializers.ChoiceField(
-        choices=User.ROLE_CHOICES, default="guest", required=False
+        choices=[
+            choice
+            for choice in User.ROLE_CHOICES
+            if choice[0] in ("guest", "hostel_owner", "vendor")
+        ],
+        default="guest",
+        required=False,
     )
 
     def validate_username(self, value):

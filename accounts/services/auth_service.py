@@ -31,6 +31,7 @@ class AuthService:
         """Create a new user from validated serializer data."""
         from accounts.models import VerificationCode
 
+        user_role = validated_data.get("role", "guest")
         user = User.objects.create_user(
             username=validated_data["username"],
             email=validated_data["email"],
@@ -38,8 +39,16 @@ class AuthService:
             first_name=validated_data.get("first_name", ""),
             last_name=validated_data.get("last_name", ""),
             phone=validated_data.get("phone", ""),
-            role=validated_data.get("role", "guest"),
+            role=user_role,
         )
+
+        # Guests can immediately log in after registration
+        if user_role == "guest":
+            user.is_active = True
+            user.is_email_verified = True
+            user.save()
+            return user
+
         user.is_active = False 
         user.save()
 

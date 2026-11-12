@@ -54,6 +54,9 @@ class BookingOTPService:
         """Direct fallback Email sender if Celery task dispatch is unavailable."""
         subject = "Hostel In - Booking Verification Code"
         name_display = guest_name or "Guest"
+        # Escape user-supplied name before placing it in the HTML body
+        from django.utils.html import escape
+        html_name_display = escape(name_display)
 
         html_message = f"""
         <!DOCTYPE html>
@@ -80,7 +83,7 @@ class BookingOTPService:
             </div>
             <div class="body">
               <div class="title">Verify Your Email Address</div>
-              <div class="desc">Hi {name_display}, use the 6-digit verification code below to verify your email and complete your booking.</div>
+              <div class="desc">Hi {html_name_display}, use the 6-digit verification code below to verify your email and complete your booking.</div>
               <div class="otp-box">{code}</div>
               <div class="expiry">This code is valid for 10 minutes. Please do not share this code with anyone.</div>
             </div>

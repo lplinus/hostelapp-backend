@@ -47,7 +47,7 @@ class Hotel(SoftDeleteModel):
         help_text="Hotel Owner",
     )
     name = models.CharField(max_length=255)
-    slug = models.SlugField(unique=True, max_length=280)
+    slug = models.SlugField(unique=True, max_length=255)
     tagline = models.CharField(max_length=255, blank=True, null=True, help_text="e.g. 5-Star Waterfront Luxury")
     description = models.TextField()
     short_description = models.CharField(max_length=300, blank=True, null=True)
@@ -323,6 +323,7 @@ class HotelBooking(SoftDeleteModel):
     """
     class BookingStatus(models.TextChoices):
         PENDING = "pending", "Pending Confirmation"
+        PAYMENT_INITIATED = "payment_initiated", "Payment Initiated"
         CONFIRMED = "confirmed", "Confirmed"
         CHECKED_IN = "checked_in", "Checked In"
         CHECKED_OUT = "checked_out", "Checked Out"
@@ -368,6 +369,13 @@ class HotelBooking(SoftDeleteModel):
         db_index=True,
     )
 
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Expiry deadline for completing payment/confirmation (25 mins initial, +20 mins on payment initiation)",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -387,6 +395,14 @@ class HotelBooking(SoftDeleteModel):
 
         if self.hotel and not self.owner_id:
             self.owner = getattr(self.hotel, 'owner', None)
+
+        if not self.expires_at and self.status in [
+            HotelBooking.BookingStatus.PENDING,
+            HotelBooking.BookingStatus.PAYMENT_INITIATED,
+        ]:
+            from django.utils import timezone
+            from datetime import timedelta
+            self.expires_at = timezone.now() + timedelta(minutes=25)
 
         if self.check_in_date and self.check_out_date:
             delta = (self.check_out_date - self.check_in_date).days
@@ -433,6 +449,7 @@ class HotelPayment(SoftDeleteModel):
     class PaymentMethod(models.TextChoices):
         ONLINE = "online", "Online Payment"
         PAY_AT_HOTEL = "pay_at_hotel", "Pay at Hotel"
+        ON_ARRIVAL = "on_arrival", "Pay on Arrival"
 
     booking = models.OneToOneField(
         HotelBooking,

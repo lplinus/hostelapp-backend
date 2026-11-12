@@ -55,7 +55,7 @@ class Product(SoftDeleteModel):
         db_index=True
     )
     name = models.CharField(max_length=255, db_index=True)
-    slug = models.SlugField(max_length=280, unique=True)
+    slug = models.SlugField(max_length=255, unique=True)
     description = models.TextField()
     price = models.DecimalField(max_digits=12, decimal_places=2)
     image = models.ImageField(

@@ -3,7 +3,9 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from rest_framework import viewsets, permissions, decorators, status, filters
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
+from django.utils import timezone
 
 from .models import (
     VacationRental,
@@ -22,6 +24,12 @@ from .serializers import (
     VacationRentalBookingSerializer,
     VacationRentalBookingCreateSerializer,
 )
+
+
+def _ensure_rental_host(user, rental):
+    """Only the rental's host (or staff) may modify the rental, its images and calendar."""
+    if not user.is_staff and getattr(rental, "host_id", None) != user.id:
+        raise PermissionDenied("You do not own this vacation rental.")
 
 
 class VacationRentalViewSet(viewsets.ModelViewSet):
@@ -89,6 +97,14 @@ class VacationRentalViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(host=self.request.user, is_active=True, is_approved=True)
 
+    def perform_update(self, serializer):
+        _ensure_rental_host(self.request.user, serializer.instance)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        _ensure_rental_host(self.request.user, instance)
+        instance.delete()
+
     @decorators.action(detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated], url_path="my-rentals")
     def my_rentals(self, request):
         """Returns all vacation rentals owned/hosted by the logged-in user."""
@@ -144,6 +160,18 @@ class VacationRentalAvailabilityViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
 
+    def perform_create(self, serializer):
+        _ensure_rental_host(self.request.user, serializer.validated_data.get("rental"))
+        serializer.save()
+
+    def perform_update(self, serializer):
+        _ensure_rental_host(self.request.user, serializer.instance.rental)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        _ensure_rental_host(self.request.user, instance.rental)
+        instance.delete()
+
 
 class VacationRentalImageViewSet(viewsets.ModelViewSet):
     """
@@ -159,7 +187,12 @@ class VacationRentalImageViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
 
+    def perform_update(self, serializer):
+        _ensure_rental_host(self.request.user, serializer.instance.rental)
+        serializer.save()
+
     def perform_destroy(self, instance):
+        _ensure_rental_host(self.request.user, instance.rental)
         instance.delete()
 
     def create(self, request, *args, **kwargs):
@@ -168,6 +201,7 @@ class VacationRentalImageViewSet(viewsets.ModelViewSet):
             return Response({"detail": "rental id is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         rental = get_object_or_404(VacationRental, id=rental_id)
+        _ensure_rental_host(request.user, rental)
         image_files = []
         for key in ["images", "images[]", "image"]:
             if key in request.FILES:
@@ -223,6 +257,7 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
             "verify_otp",
             "send_email_otp",
             "verify_email_otp",
+            "check_availability",
         ]:
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
@@ -246,6 +281,27 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
             # User can see bookings they made OR bookings for rentals they host/own
             return qs.filter(Q(user=user) | Q(host=user) | Q(owner=user) | Q(rental__host=user))
         return qs.none()
+
+    # Direct PUT/PATCH/DELETE on a booking is limited to the host/owner or staff.
+    # Guests change their bookings through the dedicated actions (e.g. cancel).
+    def _ensure_booking_manager(self, booking):
+        user = self.request.user
+        if (
+            user.is_staff
+            or booking.host_id == user.id
+            or booking.owner_id == user.id
+            or booking.rental.host_id == user.id
+        ):
+            return
+        raise PermissionDenied("You do not have permission to modify this booking.")
+
+    def perform_update(self, serializer):
+        self._ensure_booking_manager(serializer.instance)
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._ensure_booking_manager(instance)
+        instance.delete()
 
     def create(self, request, *args, **kwargs):
         serializer = VacationRentalBookingCreateSerializer(data=request.data, context={"request": request})
@@ -433,6 +489,40 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
         serializer = VacationRentalBookingSerializer(booking, context={"request": request})
         return Response(serializer.data)
 
+    @decorators.action(detail=True, methods=["post"], permission_classes=[permissions.AllowAny], url_path="initiate-payment")
+    def initiate_payment(self, request, pk=None):
+        """
+        Transition a pending vacation rental booking to 'payment_initiated' and extend expiry by +20 minutes
+        (capped at 45 minutes total from creation).
+        """
+        booking = get_object_or_404(VacationRentalBooking, id=pk)
+
+        if booking.status not in [
+            VacationRentalBooking.BookingStatus.PENDING_APPROVAL,
+            VacationRentalBooking.BookingStatus.PAYMENT_INITIATED,
+        ]:
+            return Response(
+                {"error": f"Booking is '{booking.status}'. Cannot initiate payment."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        now = timezone.now()
+        extended_expiry = now + timedelta(minutes=20)
+        max_expiry = (booking.created_at or now) + timedelta(minutes=45)
+        booking.expires_at = min(extended_expiry, max_expiry)
+        booking.status = VacationRentalBooking.BookingStatus.PAYMENT_INITIATED
+        booking.save(update_fields=["status", "expires_at"])
+
+        return Response(
+            {
+                "message": "Payment initiated. Expiry extended.",
+                "booking_id": str(booking.id),
+                "status": booking.status,
+                "expires_at": booking.expires_at.isoformat() if booking.expires_at else None,
+            },
+            status=status.HTTP_200_OK,
+        )
+
     @decorators.action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated], url_path="decline")
     def decline(self, request, pk=None):
         """Host declines a pending reservation request."""
@@ -451,6 +541,7 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
 
         serializer = VacationRentalBookingSerializer(booking, context={"request": request})
         return Response(serializer.data)
+
 
     @decorators.action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated], url_path="cancel")
     def cancel(self, request, pk=None):
@@ -495,3 +586,142 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
 
         serializer = VacationRentalBookingSerializer(booking, context={"request": request})
         return Response(serializer.data)
+
+    @decorators.action(
+        detail=False, methods=["get", "post"], permission_classes=[permissions.AllowAny], url_path="check-availability"
+    )
+    def check_availability(self, request):
+        """
+        Check whole-property availability for a vacation rental over a date range.
+        Considers both active bookings and host calendar blocks.
+        """
+        data = request.data if request.method == "POST" else request.query_params
+        rental_id = data.get("rental_id") or data.get("rental")
+        check_in_str = data.get("check_in_date") or data.get("check_in")
+        check_out_str = data.get("check_out_date") or data.get("check_out")
+
+        if not rental_id:
+            return Response(
+                {"available": False, "error": "rental_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not check_in_str or not check_out_str:
+            return Response(
+                {"available": False, "error": "check_in_date and check_out_date are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from datetime import datetime
+
+        try:
+            if isinstance(check_in_str, str):
+                check_in = datetime.strptime(check_in_str.split("T")[0], "%Y-%m-%d").date()
+            else:
+                check_in = check_in_str
+            if isinstance(check_out_str, str):
+                check_out = datetime.strptime(check_out_str.split("T")[0], "%Y-%m-%d").date()
+            else:
+                check_out = check_out_str
+        except (ValueError, TypeError):
+            return Response(
+                {"available": False, "error": "Invalid date format. Use YYYY-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        today = timezone.now().date()
+        if check_in < today:
+            return Response(
+                {"available": False, "error": "Check-in date cannot be in the past."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if check_in >= check_out or (check_out - check_in).days < 1:
+            return Response(
+                {"available": False, "error": "Minimum stay is 1 day. Check-out date must be strictly after check-in date."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            rental = VacationRental.objects.get(id=rental_id, is_active=True)
+        except VacationRental.DoesNotExist:
+            return Response(
+                {"available": False, "error": "Vacation rental does not exist or is inactive."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # 1. Overlapping bookings
+        overlap_booking = (
+            VacationRentalBooking.objects.filter(rental=rental)
+            .filter(check_in_date__lt=check_out, check_out_date__gt=check_in)
+            .exclude(status__in=[VacationRentalBooking.BookingStatus.CANCELLED, VacationRentalBooking.BookingStatus.DECLINED])
+        )
+        if overlap_booking.exists():
+            user = request.user if request and request.user.is_authenticated else None
+            guest_email = (data.get("guest_email") or data.get("email") or (user.email if user else "")).strip().lower()
+            mobile_number = (data.get("mobile_number") or data.get("phone") or (user.phone if user else "")).strip()
+
+            from django.db.models import Q
+            dup_query = Q()
+            if user:
+                dup_query |= Q(user=user)
+            if mobile_number:
+                dup_query |= Q(guest_details__mobile_number=mobile_number)
+            if guest_email:
+                dup_query |= Q(guest_details__guest_email__iexact=guest_email)
+
+            if dup_query and overlap_booking.filter(dup_query).exists():
+                dup_msg = (
+                    f"A booking already exists for this guest at '{rental.title}' "
+                    f"during the selected dates ({check_in} to {check_out}). "
+                    f"You cannot have multiple active bookings at the same property for overlapping dates."
+                )
+                return Response(
+                    {
+                        "available": False,
+                        "rental_id": str(rental.id),
+                        "rental_title": rental.title,
+                        "error": dup_msg,
+                        "message": dup_msg,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+            return Response(
+                {
+                    "available": False,
+                    "rental_id": str(rental.id),
+                    "rental_title": rental.title,
+                    "message": "These dates are already booked. Please choose different dates.",
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # 2. Blocked dates
+        blocked_dates = VacationRentalAvailability.objects.filter(
+            rental=rental,
+            date__gte=check_in,
+            date__lt=check_out,
+            is_available=False,
+        )
+        if blocked_dates.exists():
+            return Response(
+                {
+                    "available": False,
+                    "rental_id": str(rental.id),
+                    "rental_title": rental.title,
+                    "message": "One or more selected dates are blocked on the host calendar.",
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            {
+                "available": True,
+                "rental_id": str(rental.id),
+                "rental_title": rental.title,
+                "message": f"'{rental.title}' is available from {check_in} to {check_out}!",
+            },
+            status=status.HTTP_200_OK,
+        )
+

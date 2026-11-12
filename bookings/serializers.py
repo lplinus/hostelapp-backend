@@ -13,7 +13,15 @@ class BookingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = "__all__"
-        read_only_fields = ("user", "owner", "payment_status")
+        read_only_fields = (
+            "user",
+            "owner",
+            "payment_status",
+            # Server-managed fields — never accepted from the client
+            "cooldown_until",
+            "expires_at",
+            "is_deleted",
+        )
 
     def validate_guest_name(self, value):
         if not value or len(value.strip()) < 3:
@@ -58,9 +66,9 @@ class BookingSerializer(serializers.ModelSerializer):
                 {"check_in": "Check-in date cannot be in the past."}
             )
 
-        if check_in >= check_out:
+        if check_in >= check_out or (check_out - check_in).days < 1:
             raise serializers.ValidationError(
-                {"check_out": "Check-out date must be strictly after check-in date."}
+                {"check_out": "Minimum stay is 1 day. Check-out date must be strictly after check-in date."}
             )
 
         # 2. Check for overlapping bookings with the same mobile or email
@@ -93,6 +101,20 @@ class BookingSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     f"A booking already exists for this guest at {hostel.name} during the selected dates ({check_in} to {check_out}). "
                     "You cannot have multiple active bookings at the same hostel for overlapping dates."
+                )
+
+        # 3. Room-type inventory overlap check (bed-level availability)
+        room_type = data.get("room_type")
+        if room_type and check_in and check_out:
+            from rooms.models import Bed
+
+            available_count = Bed.count_available_beds(room_type, check_in, check_out)
+            if available_count <= 0:
+                raise serializers.ValidationError(
+                    f"No beds available in "
+                    f"{room_type.get_room_category_display()} - {room_type.get_sharing_type_display()} "
+                    f"for the selected dates ({check_in} to {check_out}). "
+                    "All beds are booked during this period."
                 )
 
         return data

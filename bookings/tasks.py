@@ -155,27 +155,39 @@ def process_booking_confirmation_task(self, booking_id, payment_id=None):
 @shared_task(
     name="bookings.tasks.cleanup_expired_bookings_task",
 )
-def cleanup_expired_bookings_task(expiry_minutes=30):
+def cleanup_expired_bookings_task(default_expiry_minutes=25):
     """
-    Celery task to automatically cancel stale pending bookings (e.g., abandoned online payments)
-    older than `expiry_minutes`.
+    Smarter cleanup logic following major platforms (Booking.com, Airbnb, Agoda):
     
-    This ensures that when multiple bookings are made simultaneously, abandoned bookings
-    do not hold rooms or block other users from booking.
+    Only cancels/deletes a booking when:
+    1. Status is still 'pending' or 'payment_initiated'
+    2. AND the booking has fully expired based on `expires_at` (or fallback cutoff_time if expires_at is null)
+    
+    Bookings in 'payment_initiated' status are protected until their extended +20 minute
+    window (up to 45 mins total) has elapsed, ensuring users completing 3D Secure / OTP
+    are never cut off mid-payment.
     """
-    cutoff_time = timezone.now() - timedelta(minutes=expiry_minutes)
+    from django.db.models import Q
+    now = timezone.now()
+    fallback_cutoff = now - timedelta(minutes=default_expiry_minutes)
+
+    # Eligible for cleanup only if:
+    # (expires_at is set AND expires_at <= now) OR (expires_at is NULL AND created_at < fallback_cutoff)
+    stale_filter = (
+        Q(expires_at__isnull=False, expires_at__lte=now)
+        | Q(expires_at__isnull=True, created_at__lt=fallback_cutoff)
+    )
 
     stale_bookings = Booking.objects.filter(
-        status="pending",
+        status__in=["pending", "payment_initiated"],
         payment_method="online",
-        created_at__lt=cutoff_time,
-    )
+    ).filter(stale_filter)
 
     count = stale_bookings.count()
     if count > 0:
         stale_bookings.update(status="cancelled")
         logger.info(
-            f"[Celery] Cancelled {count} expired pending bookings older than {expiry_minutes} mins."
+            f"[Celery] Cancelled {count} expired pending/payment_initiated bookings whose expiry elapsed."
         )
     else:
         logger.info("[Celery] No expired pending bookings found.")
@@ -267,6 +279,9 @@ def send_booking_otp_email_task(self, email, code, guest_name=None):
     clean_email = email.strip().lower()
     subject = "Hostel In - Booking Verification Code"
     name_display = guest_name or "Guest"
+    # Escape user-supplied name before placing it in the HTML body
+    from django.utils.html import escape
+    html_name_display = escape(name_display)
 
     html_message = f"""
     <!DOCTYPE html>
@@ -293,7 +308,7 @@ def send_booking_otp_email_task(self, email, code, guest_name=None):
         </div>
         <div class="body">
           <div class="title">Verify Your Email Address</div>
-          <div class="desc">Hi {name_display}, use the 6-digit verification code below to verify your email and complete your booking.</div>
+          <div class="desc">Hi {html_name_display}, use the 6-digit verification code below to verify your email and complete your booking.</div>
           <div class="otp-box">{code}</div>
           <div class="expiry">This code is valid for 10 minutes. Please do not share this code with anyone.</div>
         </div>

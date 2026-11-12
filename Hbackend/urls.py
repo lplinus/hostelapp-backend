@@ -36,12 +36,20 @@ _original_get_app_list = admin.site.get_app_list
 
 def _custom_get_app_list(request, app_label=None):
     app_list = _original_get_app_list(request, app_label)
-    # Order: Users (accounts) at the top, then hostels, hotels, vacation rentals directly below
+    # Order requested:
+    # 1. User table (accounts)
+    # 2. Guest profiles (guestprofile)
+    # 3. Hotels (hotels)
+    # 4. Vacation rentals (vacanationrentals)
+    # 5. Hostel (hostels)
+    # 6. Hostel Booking (bookings)
     priority_order = {
         "accounts": 1,
-        "hostels": 2,
+        "guestprofile": 2,
         "hotels": 3,
         "vacanationrentals": 4,
+        "hostels": 5,
+        "bookings": 6,
     }
     return sorted(
         app_list,
@@ -114,6 +122,9 @@ urlpatterns = [
     # hotels & vacation rentals
     path("api/hotels/", include("hotels.urls")),
     path("api/vacanationrentals/", include("vacanationrentals.urls")),
+
+    # guest profile
+    path("api/guestprofile/", include("guestprofile.urls")),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -18,7 +18,8 @@ class User(AbstractUser, SoftDeleteModel):
         ("guest", "Guest"),
         ("hostel_owner", "Hostel Owner"),
         ("vendor", "Vendor"),
-        # ("admin", "Admin"),
+        ("admin", "Admin"),
+        ("superadmin", "Superadmin"),
     )
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="guest")
