@@ -24,6 +24,7 @@ from .serializers import (
     VacationRentalBookingSerializer,
     VacationRentalBookingCreateSerializer,
 )
+from Hbackend.pagination import NineResultsSetPagination
 
 
 def _ensure_rental_host(user, rental):
@@ -43,6 +44,8 @@ class VacationRentalViewSet(viewsets.ModelViewSet):
         .prefetch_related("amenities", "images")
         .all()
     )
+    serializer_class = VacationRentalSerializer
+    pagination_class = NineResultsSetPagination
     lookup_field = "slug"
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = {

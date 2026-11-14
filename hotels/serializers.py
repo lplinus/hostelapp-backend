@@ -125,6 +125,7 @@ class HotelSerializer(serializers.ModelSerializer):
     images = HotelImageSerializer(many=True, read_only=True)
     room_types = HotelRoomTypeSerializer(many=True, read_only=True)
     amenities_list = serializers.SerializerMethodField()
+    reviews = serializers.SerializerMethodField()
 
     class Meta:
         model = Hotel
@@ -164,12 +165,18 @@ class HotelSerializer(serializers.ModelSerializer):
             "meta_description",
             "images",
             "room_types",
+            "reviews",
             "created_at",
             "updated_at",
         )
 
     def get_amenities_list(self, obj):
         return [{"id": a.id, "name": a.name, "icon": getattr(a, "icon", None)} for a in obj.amenities.all()]
+
+    def get_reviews(self, obj):
+        from reviews.serializers import HotelReviewSerializer
+        qs = obj.reviews.filter(is_approved=True).select_related("user").order_by("-created_at")
+        return HotelReviewSerializer(qs, many=True, context=self.context).data
 
 
 class HotelWriteSerializer(serializers.ModelSerializer):

@@ -109,6 +109,7 @@ class VacationRentalSerializer(serializers.ModelSerializer):
     host_name = serializers.CharField(source="host.get_full_name", read_only=True)
     images = VacationRentalImageSerializer(many=True, read_only=True)
     amenities_list = serializers.SerializerMethodField()
+    reviews = serializers.SerializerMethodField()
 
     class Meta:
         model = VacationRental
@@ -170,12 +171,18 @@ class VacationRentalSerializer(serializers.ModelSerializer):
             "meta_title",
             "meta_description",
             "images",
+            "reviews",
             "created_at",
             "updated_at",
         )
 
     def get_amenities_list(self, obj):
         return [{"id": a.id, "name": a.name, "icon": getattr(a, "icon", None)} for a in obj.amenities.all()]
+
+    def get_reviews(self, obj):
+        from reviews.serializers import VacationRentalReviewSerializer
+        qs = obj.reviews.filter(is_approved=True).select_related("user").order_by("-created_at")
+        return VacationRentalReviewSerializer(qs, many=True, context=self.context).data
 
 
 class VacationRentalWriteSerializer(serializers.ModelSerializer):

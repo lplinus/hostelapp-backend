@@ -14,6 +14,7 @@ from .serializers import (
     HostelTypeImageSerializer,
     CityHostelListSerializer,
 )
+from Hbackend.pagination import NineResultsSetPagination
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
@@ -48,7 +49,7 @@ class HostelViewSet(viewsets.ModelViewSet):
     )
     serializer_class = HostelSerializer
     lookup_field = "slug"
-    pagination_class = None
+    pagination_class = NineResultsSetPagination
 
     def get_object(self):
         """

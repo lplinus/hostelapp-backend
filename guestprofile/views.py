@@ -65,15 +65,18 @@ class GuestBookingsListView(APIView):
 
         hostel_bookings = (
             Booking.objects.filter(hostel_filter)
-            .select_related("hostel", "room_type")
+            .select_related("hostel", "room_type", "review")
             .order_by("-created_at")[:50]
         )
 
         for b in hostel_bookings:
+            has_rev = hasattr(b, "review") and b.review is not None
             results.append({
                 "id": str(b.id),
                 "booking_type": "hostel",
                 "booking_reference": getattr(b, "booking_reference", str(b.id)[:8].upper()),
+                "property_id": b.hostel_id,
+                "property_slug": b.hostel.slug if b.hostel else None,
                 "property_name": b.hostel.name if b.hostel else "Hostel Stay",
                 "room_title": b.room_type.name if b.room_type else "Standard Room",
                 "check_in": b.check_in.isoformat() if b.check_in else None,
@@ -82,6 +85,9 @@ class GuestBookingsListView(APIView):
                 "total_price": str(b.total_price),
                 "guests_count": b.guests_count,
                 "payment_status": b.payment_status,
+                "has_reviewed": has_rev,
+                "review_rating": b.review.rating if has_rev else None,
+                "review_comment": b.review.comment if has_rev else None,
                 "created_at": b.created_at.isoformat() if hasattr(b, "created_at") and b.created_at else None,
             })
 
@@ -94,15 +100,18 @@ class GuestBookingsListView(APIView):
 
         hotel_bookings = (
             HotelBooking.objects.filter(hotel_filter)
-            .select_related("hotel", "room_type")
+            .select_related("hotel", "room_type", "review")
             .order_by("-created_at")[:50]
         )
 
         for b in hotel_bookings:
+            has_rev = hasattr(b, "review") and b.review is not None
             results.append({
                 "id": str(b.id),
                 "booking_type": "hotel",
                 "booking_reference": b.booking_reference,
+                "property_id": str(b.hotel_id) if b.hotel_id else None,
+                "property_slug": b.hotel.slug if b.hotel else None,
                 "property_name": b.hotel.name if b.hotel else "Hotel Stay",
                 "room_title": b.room_type.name if b.room_type else "Hotel Suite",
                 "check_in": b.check_in_date.isoformat() if b.check_in_date else None,
@@ -111,6 +120,9 @@ class GuestBookingsListView(APIView):
                 "total_price": str(b.total_amount),
                 "guests_count": b.number_of_rooms,
                 "payment_status": "confirmed",
+                "has_reviewed": has_rev,
+                "review_rating": b.review.rating if has_rev else None,
+                "review_comment": b.review.comment if has_rev else None,
                 "created_at": b.created_at.isoformat() if b.created_at else None,
             })
 
@@ -123,15 +135,18 @@ class GuestBookingsListView(APIView):
 
         vr_bookings = (
             VacationRentalBooking.objects.filter(vr_filter)
-            .select_related("rental")
+            .select_related("rental", "review")
             .order_by("-created_at")[:50]
         )
 
         for b in vr_bookings:
+            has_rev = hasattr(b, "review") and b.review is not None
             results.append({
                 "id": str(b.id),
                 "booking_type": "vacation_rental",
                 "booking_reference": b.booking_reference,
+                "property_id": str(b.rental_id) if b.rental_id else None,
+                "property_slug": b.rental.slug if b.rental else None,
                 "property_name": b.rental.title if b.rental else "Vacation Home",
                 "room_title": "Entire Place",
                 "check_in": b.check_in_date.isoformat() if b.check_in_date else None,
@@ -140,6 +155,9 @@ class GuestBookingsListView(APIView):
                 "total_price": str(b.total_price),
                 "guests_count": 1,
                 "payment_status": "confirmed",
+                "has_reviewed": has_rev,
+                "review_rating": b.review.rating if has_rev else None,
+                "review_comment": b.review.comment if has_rev else None,
                 "created_at": b.created_at.isoformat() if b.created_at else None,
             })
 

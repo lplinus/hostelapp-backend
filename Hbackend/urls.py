@@ -43,6 +43,7 @@ def _custom_get_app_list(request, app_label=None):
     # 4. Vacation rentals (vacanationrentals)
     # 5. Hostel (hostels)
     # 6. Hostel Booking (bookings)
+    # 7. Reviews (reviews - directly below Hostel Booking)
     priority_order = {
         "accounts": 1,
         "guestprofile": 2,
@@ -50,6 +51,7 @@ def _custom_get_app_list(request, app_label=None):
         "vacanationrentals": 4,
         "hostels": 5,
         "bookings": 6,
+        "reviews": 7,
     }
     return sorted(
         app_list,

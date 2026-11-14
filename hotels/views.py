@@ -23,6 +23,7 @@ from .serializers import (
     HotelBookingSerializer,
     HotelBookingCreateSerializer,
 )
+from Hbackend.pagination import NineResultsSetPagination
 
 
 def _ensure_hotel_owner(user, hotel):
@@ -42,6 +43,8 @@ class HotelViewSet(viewsets.ModelViewSet):
         .prefetch_related("amenities", "images", "room_types")
         .all()
     )
+    serializer_class = HotelSerializer
+    pagination_class = NineResultsSetPagination
     lookup_field = "slug"
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = {

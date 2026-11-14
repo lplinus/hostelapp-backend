@@ -284,8 +284,9 @@ class OwnerAllBookingsView(APIView):
         # 1. Hostel Bookings
         hostel_b_qs = Booking.objects.filter(
             Q(owner=user) | Q(hostel__owner=user)
-        ).select_related("hostel", "room_type", "user")
+        ).select_related("hostel", "room_type", "user", "review")
         for b in hostel_b_qs:
+            has_rev = hasattr(b, "review") and b.review is not None
             unified_list.append({
                 "id": str(b.id),
                 "booking_reference": f"STN-{str(b.id)[:8].upper()}",
@@ -301,16 +302,19 @@ class OwnerAllBookingsView(APIView):
                 "status": b.status,
                 "payment_method": b.payment_method,
                 "payment_status": b.payment_status,
+                "has_reviewed": has_rev,
+                "review_rating": b.review.rating if has_rev else None,
                 "created_at": b.created_at,
             })
 
         # 2. Hotel Bookings
         hotel_b_qs = HotelBooking.objects.filter(
             Q(owner=user) | Q(hotel__owner=user)
-        ).select_related("hotel", "room_type", "guest_details", "payment_details")
+        ).select_related("hotel", "room_type", "guest_details", "payment_details", "review")
         for hb in hotel_b_qs:
             g = getattr(hb, "guest_details", None)
             p = getattr(hb, "payment_details", None)
+            has_rev = hasattr(hb, "review") and hb.review is not None
             unified_list.append({
                 "id": str(hb.id),
                 "booking_reference": hb.booking_reference,
@@ -326,16 +330,19 @@ class OwnerAllBookingsView(APIView):
                 "status": hb.status,
                 "payment_method": p.payment_method if p else "online",
                 "payment_status": p.payment_status if p else "pending",
+                "has_reviewed": has_rev,
+                "review_rating": hb.review.rating if has_rev else None,
                 "created_at": hb.created_at,
             })
 
         # 3. Vacation Rental Bookings
         rental_b_qs = VacationRentalBooking.objects.filter(
             Q(host=user) | Q(owner=user) | Q(rental__host=user)
-        ).select_related("rental", "guest_details", "pricing_details")
+        ).select_related("rental", "guest_details", "pricing_details", "review")
         for rb in rental_b_qs:
             g = getattr(rb, "guest_details", None)
             p = getattr(rb, "pricing_details", None)
+            has_rev = hasattr(rb, "review") and rb.review is not None
             unified_list.append({
                 "id": str(rb.id),
                 "booking_reference": rb.booking_reference,
@@ -351,6 +358,8 @@ class OwnerAllBookingsView(APIView):
                 "status": rb.status,
                 "payment_method": p.payment_method if p else "online",
                 "payment_status": p.payment_status if p else "pending",
+                "has_reviewed": has_rev,
+                "review_rating": rb.review.rating if has_rev else None,
                 "created_at": rb.created_at,
             })
 
