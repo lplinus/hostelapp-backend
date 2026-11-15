@@ -1,6 +1,7 @@
 import django_filters
 from django.db.models import Q
 from .models import VacationRental
+from .search import search_vacation_rentals
 
 
 class VacationRentalFilter(django_filters.FilterSet):
@@ -58,18 +59,7 @@ class VacationRentalFilter(django_filters.FilterSet):
         ]
 
     def filter_search(self, queryset, name, value):
-        if not value:
-            return queryset
-        val = str(value).strip()
-        if not val:
-            return queryset
-        return queryset.filter(
-            Q(title__icontains=val)
-            | Q(city__name__icontains=val)
-            | Q(area__name__icontains=val)
-            | Q(address__icontains=val)
-            | Q(tagline__icontains=val)
-        ).distinct()
+        return search_vacation_rentals(queryset, value)
 
     def filter_categories(self, queryset, name, value):
         if not value or value == "all":

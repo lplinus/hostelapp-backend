@@ -48,7 +48,7 @@ class VacationRentalViewSet(viewsets.ModelViewSet):
     serializer_class = VacationRentalSerializer
     pagination_class = TenResultsSetPagination
     lookup_field = "slug"
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = VacationRentalFilter
     search_fields = ["title", "city__name", "area__name", "address", "tagline"]
     ordering_fields = ["price_per_night", "rating_avg", "created_at"]

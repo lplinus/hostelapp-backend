@@ -47,7 +47,7 @@ class HotelViewSet(viewsets.ModelViewSet):
     serializer_class = HotelSerializer
     pagination_class = TenResultsSetPagination
     lookup_field = "slug"
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_class = HotelFilter
     search_fields = ["name", "city__name", "area__name", "address", "tagline"]
     ordering_fields = ["starting_price_per_night", "rating_avg", "star_rating", "created_at"]
