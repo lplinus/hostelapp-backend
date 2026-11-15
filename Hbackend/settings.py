@@ -43,15 +43,17 @@ SECRET_KEY = config("SECRET_KEY")
 DEBUG = config("DEBUG", default=True, cast=bool)
 
 
-ALLOWED_HOSTS = [
-    "localhost",
-    "127.0.0.1",
-    "hostelin.online",
-    "www.hostelin.online",
-    'api.hostelin.online',
-]
+# ALLOWED_HOSTS = [
+#     "localhost",
+#     "127.0.0.1",
+#     "hostelin.online",
+#     #local ip
+#     "10.114.32.240",
+#     "www.hostelin.online",
+#     'api.hostelin.online',
+# ]
 
-# ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -288,6 +290,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://hostelin.online",
+    #local ip
+    "http://10.114.32.240:3000",
     "https://www.hostelin.online",
     "https://api.hostelin.online",
 ]
@@ -302,6 +306,8 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://hostelin.online",
+    #local ip
+    "http://10.114.32.240:3000",
     "https://www.hostelin.online",
     "https://api.hostelin.online",
 ]

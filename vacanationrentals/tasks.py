@@ -5,7 +5,9 @@ from celery import shared_task
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives, get_connection
 from django.db import transaction
+from django.template.loader import render_to_string
 from django.utils import timezone
+from django.utils.html import strip_tags
 from email.mime.image import MIMEImage
 
 from bookings.utils.qr_generator import generate_booking_qr
@@ -99,56 +101,53 @@ def process_vacation_rental_booking_task(self, booking_id):
             # Send Guest Confirmation Email
             if guest_email:
                 subject = f"Reservation Confirmed - {rental.title} (#{booking.booking_reference})"
-                html_body = f"""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                  <meta charset="utf-8">
-                  <style>
-                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; }}
-                    .card {{ max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.04); }}
-                    .header {{ background: #312E81; padding: 24px; text-align: center; color: #ffffff; }}
-                    .header h1 {{ margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.5px; }}
-                    .body {{ padding: 28px 24px; }}
-                    .ref {{ font-size: 13px; font-weight: 700; color: #312E81; background: #EEF2FF; padding: 6px 12px; border-radius: 8px; display: inline-block; margin-bottom: 16px; }}
-                    .title {{ font-size: 18px; font-weight: 800; color: #0f172a; margin-bottom: 8px; }}
-                    .detail-row {{ display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #475569; }}
-                    .detail-row strong {{ color: #0f172a; }}
-                    .qr-container {{ text-align: center; margin: 24px 0 16px; padding: 16px; background: #F8FAFC; border-radius: 12px; border: 1px dashed #CBD5E1; }}
-                    .footer {{ background: #f8fafc; padding: 16px 24px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; }}
-                  </style>
-                </head>
-                <body>
-                  <div class="card">
-                    <div class="header">
-                      <h1>HOSTEL IN • VACATION RENTALS</h1>
-                    </div>
-                    <div class="body">
-                      <span class="ref">Booking #{booking.booking_reference}</span>
-                      <div class="title">Your reservation is confirmed!</div>
-                      <p style="font-size: 13px; color: #64748b; line-height: 1.5; margin-bottom: 20px;">
-                        Hi {guest_name}, pack your bags! Your stay at <strong>{rental.title}</strong> is officially locked in.
-                      </p>
 
-                      <div class="detail-row"><span>Check-in:</span><strong>{booking.check_in_date}</strong></div>
-                      <div class="detail-row"><span>Check-out:</span><strong>{booking.check_out_date}</strong></div>
-                      <div class="detail-row"><span>Length of Stay:</span><strong>{booking.number_of_nights} Night(s)</strong></div>
-                      <div class="detail-row"><span>Address:</span><strong>{rental.address or 'Address shared upon check-in'}</strong></div>
-                      <div class="detail-row"><span>Total Paid/Payable:</span><strong style="color: #312E81; font-size: 15px;">₹{booking.total_price}</strong></div>
+                caretaker_name_val = (getattr(rental, "caretaker_name", "") or "").strip()
+                caretaker_number_val = (getattr(rental, "caretaker_number", "") or "").strip()
 
-                      <div class="qr-container">
-                        <p style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin: 0 0 8px;">Fast Check-in Pass (Scan at Arrival)</p>
-                        <img src="cid:rental_qr" alt="Check-in QR" style="width: 150px; height: 150px; display: inline-block;" />
-                      </div>
-                    </div>
-                    <div class="footer">
-                      Hostel In Vacation Rentals • Need help? Contact support@hostelin.online
-                    </div>
-                  </div>
-                </body>
-                </html>
-                """
-                plain_body = f"Hi {guest_name},\nYour booking for {rental.title} (#{booking.booking_reference}) is confirmed.\nCheck-in: {booking.check_in_date}\nCheck-out: {booking.check_out_date}\nTotal: ₹{booking.total_price}\n\nHostel In Team"
+                # Get primary or first rental image
+                rental_image = None
+                try:
+                    img_obj = rental.images.filter(is_primary=True).first() or rental.images.first()
+                    if img_obj and hasattr(img_obj, "image") and img_obj.image:
+                        rental_image = img_obj.image.url
+                except Exception:
+                    pass
+
+                guests_count = 1
+                if guest and hasattr(guest, "adults"):
+                    guests_count = (guest.adults or 1) + (getattr(guest, "children", 0) or 0)
+
+                context = {
+                    "booking": booking,
+                    "rental": rental,
+                    "guest_name": guest_name,
+                    "guest_email": guest_email,
+                    "rental_image": rental_image,
+                    "payment_method": payment_method_str,
+                    "caretaker_name": caretaker_name_val,
+                    "caretaker_number": caretaker_number_val,
+                    "guests_count": guests_count,
+                }
+
+                html_body = render_to_string("emails/vacation_rental_booking_confirmation.html", context)
+
+                caretaker_plain = ""
+                if caretaker_name_val or caretaker_number_val:
+                    caretaker_plain = f"\nOn-Site Caretaker: {caretaker_name_val or 'Property Caretaker'}\nCaretaker Phone: {caretaker_number_val or 'Shared at check-in'}\n"
+
+                plain_body = (
+                    f"Hi {guest_name},\n\n"
+                    f"Your booking for {rental.title} (#{booking.booking_reference}) is confirmed.\n\n"
+                    f"Check-in: {booking.check_in_date}\n"
+                    f"Check-out: {booking.check_out_date}\n"
+                    f"Length of Stay: {booking.number_of_nights} Night(s)\n"
+                    f"Address: {rental.address or 'Address shared upon check-in'}\n"
+                    f"{caretaker_plain}"
+                    f"Total: ₹{booking.total_price}\n\n"
+                    f"Hostel In Vacation Rentals\n"
+                    f"Need help? Contact support@hostelin.online\n"
+                )
 
                 msg = EmailMultiAlternatives(subject=subject, body=plain_body, from_email=from_email, to=[guest_email], connection=connection)
                 msg.attach_alternative(html_body, "text/html")

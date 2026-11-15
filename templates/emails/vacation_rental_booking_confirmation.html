@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Your reservation is confirmed! - {{ rental.title }}</title>
+  <!--[if mso]>
+  <style type="text/css">
+    body, table, td, p, a { font-family: Arial, sans-serif !important; }
+  </style>
+  <![endif]-->
+  <style type="text/css">
+    body {
+      margin: 0;
+      padding: 0;
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+      background-color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #0f172a;
+    }
+    table {
+      border-collapse: collapse;
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }
+    img {
+      border: 0;
+      line-height: 100%;
+      outline: none;
+      text-decoration: none;
+      -ms-interpolation-mode: bicubic;
+    }
+    .detail-row {
+      border-bottom: 1px solid #f1f5f9;
+      padding: 10px 0;
+    }
+    @media only screen and (max-width: 600px) {
+      .container {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: 0 !important;
+      }
+      .mobile-padding {
+        padding-left: 20px !important;
+        padding-right: 20px !important;
+      }
+      .date-col {
+        display: block !important;
+        width: 100% !important;
+        margin-bottom: 14px !important;
+      }
+      .caretaker-cell {
+        display: block !important;
+        width: 100% !important;
+        text-align: left !important;
+        margin-top: 10px !important;
+      }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; padding: 32px 12px;">
+    <tr>
+      <td align="center">
+        <!-- Main Container Card -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="container" style="max-width: 560px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;">
+          
+          <!-- BRAND HEADER -->
+          <tr>
+            <td style="background-color: #312E81; padding: 26px 36px; text-align: center;" class="mobile-padding">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td align="center">
+                    <span style="display: inline-block; font-size: 14px; font-weight: 800; letter-spacing: 2.5px; color: #ffffff; text-transform: uppercase;">
+                      HOSTEL IN &bull; VACATION RENTALS
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- BODY CONTENT -->
+          <tr>
+            <td style="padding: 32px 36px 28px 36px;" class="mobile-padding">
+
+              <!-- BOOKING REFERENCE BADGE -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 16px;">
+                <tr>
+                  <td style="background-color: #EEF2FF; border-radius: 8px; padding: 6px 14px;">
+                    <span style="font-size: 13px; font-weight: 700; color: #312E81; letter-spacing: 0.5px;">
+                      Booking #{{ booking.booking_reference }}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- MAIN TITLE -->
+              <h1 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.3;">
+                Your reservation is confirmed!
+              </h1>
+
+              <!-- GREETING -->
+              <p style="margin: 0 0 20px 0; font-size: 14px; color: #64748b; line-height: 1.6;">
+                Hi <strong>{{ guest_name }}</strong>, pack your bags! Your stay at <strong style="color: #0f172a;">{{ rental.title }}</strong> is officially locked in.
+              </p>
+
+              <!-- HERO RENTAL PHOTO -->
+              {% if rental_image %}
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 22px;">
+                <tr>
+                  <td>
+                    <img src="{{ rental_image }}" alt="{{ rental.title }}" width="488" style="width: 100%; max-width: 488px; height: auto; max-height: 260px; object-fit: cover; border-radius: 10px; display: block;" />
+                  </td>
+                </tr>
+              </table>
+              {% endif %}
+
+              <!-- DATES SECTION (2-Column Cards) -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F8FAFC; border-radius: 12px; border: 1px solid #E2E8F0; padding: 16px 20px; margin-bottom: 20px;">
+                <tr>
+                  <!-- Check-In -->
+                  <td width="50%" valign="top" class="date-col" align="left" style="padding-right: 12px;">
+                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 4px;">
+                      Check-In
+                    </div>
+                    <div style="font-size: 15px; font-weight: 700; color: #0f172a;">
+                      {{ booking.check_in_date }}
+                    </div>
+                  </td>
+
+                  <!-- Check-Out -->
+                  <td width="50%" valign="top" class="date-col" align="left" style="padding-left: 12px; border-left: 1px solid #e2e8f0;">
+                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 4px;">
+                      Check-Out
+                    </div>
+                    <div style="font-size: 15px; font-weight: 700; color: #0f172a;">
+                      {{ booking.check_out_date }}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- STAY DETAILS SUMMARY TABLE -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                <!-- Duration -->
+                <tr>
+                  <td align="left" style="padding: 9px 0; font-size: 13px; color: #64748b; font-weight: 500; border-bottom: 1px solid #f1f5f9; width: 40%;">
+                    Length of Stay
+                  </td>
+                  <td align="right" style="padding: 9px 0; font-size: 13px; font-weight: 700; color: #0f172a; border-bottom: 1px solid #f1f5f9;">
+                    {{ booking.number_of_nights }} Night{{ booking.number_of_nights|pluralize }}
+                  </td>
+                </tr>
+
+                <!-- Guests -->
+                {% if guests_count %}
+                <tr>
+                  <td align="left" style="padding: 9px 0; font-size: 13px; color: #64748b; font-weight: 500; border-bottom: 1px solid #f1f5f9;">
+                    Guests
+                  </td>
+                  <td align="right" style="padding: 9px 0; font-size: 13px; font-weight: 700; color: #0f172a; border-bottom: 1px solid #f1f5f9;">
+                    {{ guests_count }} Guest{{ guests_count|pluralize }}
+                  </td>
+                </tr>
+                {% endif %}
+
+                <!-- Address -->
+                <tr>
+                  <td align="left" valign="top" style="padding: 9px 0; font-size: 13px; color: #64748b; font-weight: 500; border-bottom: 1px solid #f1f5f9;">
+                    Property Address
+                  </td>
+                  <td align="right" valign="top" style="padding: 9px 0; font-size: 13px; font-weight: 600; color: #0f172a; line-height: 1.4; border-bottom: 1px solid #f1f5f9; max-width: 280px;">
+                    {{ rental.address|default:"Address shared upon check-in" }}
+                  </td>
+                </tr>
+
+                <!-- Total Amount -->
+                <tr>
+                  <td align="left" style="padding: 12px 0; font-size: 14px; color: #0f172a; font-weight: 700;">
+                    Total Paid / Payable
+                  </td>
+                  <td align="right" style="padding: 12px 0; font-size: 16px; font-weight: 800; color: #312E81;">
+                    &#8377;{{ booking.total_price }}
+                    {% if payment_method %}
+                    <span style="font-size: 12px; font-weight: normal; color: #64748b; margin-left: 4px;">({{ payment_method }})</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
+
+              <!-- ON-SITE CARETAKER & CONTACT SECTION -->
+              {% if caretaker_name or caretaker_number %}
+              <div style="margin: 20px 0 16px 0; background-color: #EEF2FF; border: 1px solid #C7D2FE; border-radius: 12px; padding: 16px 18px;">
+                <div style="font-size: 11px; font-weight: 700; color: #3730A3; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px;">
+                  🔑 On-Site Caretaker & Contact
+                </div>
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td valign="middle">
+                      <div style="font-size: 14px; font-weight: 700; color: #1E1B4B;">
+                        {{ caretaker_name|default:"Property Caretaker" }}
+                      </div>
+                      <div style="font-size: 12px; color: #4338CA; margin-top: 2px;">
+                        Assisting you during check-in & stay
+                      </div>
+                    </td>
+                    <td valign="middle" align="right" class="caretaker-cell">
+                      {% if caretaker_number %}
+                      <a href="tel:{{ caretaker_number }}" style="display: inline-block; background-color: #312E81; color: #ffffff; text-decoration: none; font-size: 12px; font-weight: 600; padding: 7px 14px; border-radius: 6px; white-space: nowrap;">
+                        📞 {{ caretaker_number }}
+                      </a>
+                      {% else %}
+                      <span style="font-size: 12px; color: #64748b; font-weight: 500;">Shared at check-in</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                </table>
+              </div>
+              {% endif %}
+
+              <!-- FAST CHECK-IN QR PASS -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 22px 0 16px 0;">
+                <tr>
+                  <td align="center" style="background-color: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 12px; padding: 20px 16px;">
+                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #475569; margin-bottom: 12px;">
+                      Fast Check-in Pass (Scan at Arrival)
+                    </div>
+
+                    <!-- QR Code Frame -->
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px;">
+                      <tr>
+                        <td align="center">
+                          <img src="cid:rental_qr" alt="Check-in QR" width="140" height="140" style="display: block; width: 140px; height: 140px; border: 0;" />
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="margin: 10px 0 0 0; font-size: 12px; color: #64748b; line-height: 1.4;">
+                      Present this pass to the on-site caretaker upon arrival for quick check-in.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background-color: #F8FAFC; padding: 18px 24px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
+              <div>Hostel In Vacation Rentals &bull; Need help? Contact <a href="mailto:support@hostelin.online" style="color: #475569; text-decoration: underline;">support@hostelin.online</a></div>
+              <div style="margin-top: 6px; font-size: 11px; color: #cbd5e1;">&copy; 2026 Hostel In. All rights reserved.</div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

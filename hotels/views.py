@@ -23,7 +23,8 @@ from .serializers import (
     HotelBookingSerializer,
     HotelBookingCreateSerializer,
 )
-from Hbackend.pagination import NineResultsSetPagination
+from .filters import HotelFilter
+from Hbackend.pagination import TenResultsSetPagination
 
 
 def _ensure_hotel_owner(user, hotel):
@@ -44,19 +45,11 @@ class HotelViewSet(viewsets.ModelViewSet):
         .all()
     )
     serializer_class = HotelSerializer
-    pagination_class = NineResultsSetPagination
+    pagination_class = TenResultsSetPagination
     lookup_field = "slug"
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = {
-        "city": ["exact"],
-        "hotel_type": ["exact"],
-        "star_rating": ["gte", "lte", "exact"],
-        "starting_price_per_night": ["gte", "lte"],
-        "is_featured": ["exact"],
-        "is_toprated": ["exact"],
-        "allows_pets": ["exact"],
-    }
-    search_fields = ["name", "city__name", "area__name", "address"]
+    filterset_class = HotelFilter
+    search_fields = ["name", "city__name", "area__name", "address", "tagline"]
     ordering_fields = ["starting_price_per_night", "rating_avg", "star_rating", "created_at"]
 
     def get_queryset(self):

@@ -24,7 +24,8 @@ from .serializers import (
     VacationRentalBookingSerializer,
     VacationRentalBookingCreateSerializer,
 )
-from Hbackend.pagination import NineResultsSetPagination
+from .filters import VacationRentalFilter
+from Hbackend.pagination import TenResultsSetPagination
 
 
 def _ensure_rental_host(user, rental):
@@ -45,22 +46,11 @@ class VacationRentalViewSet(viewsets.ModelViewSet):
         .all()
     )
     serializer_class = VacationRentalSerializer
-    pagination_class = NineResultsSetPagination
+    pagination_class = TenResultsSetPagination
     lookup_field = "slug"
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = {
-        "city": ["exact"],
-        "category": ["exact"],
-        "rental_type": ["exact"],
-        "max_guests": ["gte", "lte"],
-        "bedrooms": ["gte", "lte"],
-        "price_per_night": ["gte", "lte"],
-        "instant_book": ["exact"],
-        "allows_pets": ["exact"],
-        "is_superhost": ["exact"],
-        "is_featured": ["exact"],
-    }
-    search_fields = ["title", "city__name", "area__name", "address"]
+    filterset_class = VacationRentalFilter
+    search_fields = ["title", "city__name", "area__name", "address", "tagline"]
     ordering_fields = ["price_per_night", "rating_avg", "created_at"]
 
     def get_queryset(self):

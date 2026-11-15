@@ -35,6 +35,7 @@ class GuestProfileSerializer(serializers.ModelSerializer):
             "aadhaar_file_name",
             "aadhaar_file_url",
             "id_verification_status",
+            "share_id_with_host",
             "verified_at",
             "rejection_reason",
             "is_email_verified",
@@ -91,9 +92,16 @@ class GuestProfileSerializer(serializers.ModelSerializer):
         if user_modified:
             user.save(update_fields=["first_name", "last_name", "phone", "email"])
 
-        # When a new Aadhaar document is uploaded, set status to pending review
-        if "aadhaar_card_file" in validated_data and validated_data["aadhaar_card_file"]:
-            validated_data["id_verification_status"] = GuestProfile.VerificationStatus.PENDING
+        # When a new Aadhaar document is uploaded, mark it verified and ready for self-authorized check-in
+        if "aadhaar_card_file" in validated_data:
+            new_file = validated_data["aadhaar_card_file"]
+            if new_file:
+                validated_data["id_verification_status"] = GuestProfile.VerificationStatus.VERIFIED
+            else:
+                if instance.aadhaar_card_file:
+                    instance.aadhaar_card_file.delete(save=False)
+                instance.aadhaar_card_file = None
+                validated_data["id_verification_status"] = GuestProfile.VerificationStatus.UNVERIFIED
 
         return super().update(instance, validated_data)
 

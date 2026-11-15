@@ -53,33 +53,35 @@ class DashboardStatsView(APIView):
         from hotels.models import Hotel, HotelBooking, HotelRoomType
         from vacanationrentals.models import VacationRental, VacationRentalBooking
 
-        # 1. Properties & Rooms Breakdown
+        # 1. Properties & Rooms Breakdown (Hostels disabled as requested)
         hostels_count = Hostel.objects.filter(owner=user).count()
         hotels_count = Hotel.objects.filter(owner=user).count()
         rentals_count = VacationRental.objects.filter(host=user).count()
-        total_properties = hostels_count + hotels_count + rentals_count
+        # total_properties includes only active hotel & vacation rental properties
+        total_properties = hotels_count + rentals_count
 
         hostel_rooms = sum(
             [h.room_types.count() for h in Hostel.objects.filter(owner=user)]
         )
         hotel_rooms = HotelRoomType.objects.filter(hotel__owner=user).count()
         rental_units = rentals_count
-        total_rooms = hostel_rooms + hotel_rooms + rental_units
+        # total_rooms includes only active hotel & vacation rental rooms
+        total_rooms = hotel_rooms + rental_units
 
-        # 2. Query Bookings across all 3 property domains
+        # 2. Query Bookings across property domains
         hostel_bookings = Booking.objects.filter(Q(owner=user) | Q(hostel__owner=user) | Q(user=user))
         hotel_bookings = HotelBooking.objects.filter(Q(owner=user) | Q(hotel__owner=user) | Q(user=user))
         rental_bookings = VacationRentalBooking.objects.filter(
             Q(host=user) | Q(owner=user) | Q(rental__host=user) | Q(user=user)
         )
 
-        # 3. Active Bookings (Confirmed)
+        # 3. Active Bookings (Confirmed) - Hostels disabled from unified dashboard stats
         active_hostel = hostel_bookings.filter(status="confirmed").count()
         active_hotel = hotel_bookings.filter(status=HotelBooking.BookingStatus.CONFIRMED).count()
         active_rental = rental_bookings.filter(status=VacationRentalBooking.BookingStatus.CONFIRMED).count()
-        active_bookings = active_hostel + active_hotel + active_rental
+        active_bookings = active_hotel + active_rental
 
-        # 4. Total Bookings (Confirmed, Completed/Checked-in, Pending)
+        # 4. Total Bookings (Confirmed, Completed/Checked-in, Pending) - Hostels disabled
         total_hostel = hostel_bookings.filter(status__in=["confirmed", "completed", "pending"]).count()
         total_hotel = hotel_bookings.filter(
             status__in=["confirmed", "checked_in", "checked_out", "pending"]
@@ -87,15 +89,15 @@ class DashboardStatsView(APIView):
         total_rental = rental_bookings.filter(
             status__in=["confirmed", "checked_in", "completed", "pending_approval"]
         ).count()
-        total_bookings = total_hostel + total_hotel + total_rental
+        total_bookings = total_hotel + total_rental
 
-        # 5. Cancelled Bookings
+        # 5. Cancelled Bookings - Hostels disabled
         cancelled_hostel = hostel_bookings.filter(status="cancelled").count()
         cancelled_hotel = hotel_bookings.filter(status=HotelBooking.BookingStatus.CANCELLED).count()
         cancelled_rental = rental_bookings.filter(status=VacationRentalBooking.BookingStatus.CANCELLED).count()
-        cancelled_bookings = cancelled_hostel + cancelled_hotel + cancelled_rental
+        cancelled_bookings = cancelled_hotel + cancelled_rental
 
-        # 6. Revenue Aggregation
+        # 6. Revenue Aggregation - Hostels disabled from total dashboard revenue
         hostel_rev = (
             hostel_bookings.filter(status__in=["confirmed", "completed"]).aggregate(Sum("total_price"))[
                 "total_price__sum"
@@ -114,7 +116,8 @@ class DashboardStatsView(APIView):
             ).aggregate(Sum("total_price"))["total_price__sum"]
             or 0
         )
-        total_revenue = float(hostel_rev) + float(hotel_rev) + float(rental_rev)
+        # Hostel revenue is disabled; dashboard displays only Hotels + Vacation Rentals revenue
+        total_revenue = float(hotel_rev) + float(rental_rev)
 
         # 7. Unified Monthly Chart Data & Daily Timeline Data per Stream (Hostels, Hotels, Vacation Rentals, All)
         monthly_map = defaultdict(int)
@@ -130,14 +133,11 @@ class DashboardStatsView(APIView):
             "vacation_rental": init_timeline_map(),
         }
 
-        # Track hostel bookings
+        # Track hostel bookings (only recorded under hostel stream; omitted from unified 'all' dashboard)
         for b in hostel_bookings.only("created_at", "status"):
             if b.created_at:
-                m_key = b.created_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                monthly_map[m_key] += 1
-
                 d_key = b.created_at.strftime("%Y-%m-%d")
-                for s in ["all", "hostel"]:
+                for s in ["hostel"]:
                     stream_timelines[s][d_key]["total"] += 1
                     if b.status == "cancelled":
                         stream_timelines[s][d_key]["cancelled"] += 1

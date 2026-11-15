@@ -71,6 +71,16 @@ class GuestBookingsListView(APIView):
 
         for b in hostel_bookings:
             has_rev = hasattr(b, "review") and b.review is not None
+            if b.room_type:
+                if hasattr(b.room_type, "get_sharing_type_display") and hasattr(b.room_type, "get_room_category_display"):
+                    room_title = f"{b.room_type.get_room_category_display()} ({b.room_type.get_sharing_type_display()})"
+                elif hasattr(b.room_type, "name"):
+                    room_title = b.room_type.name
+                else:
+                    room_title = str(b.room_type)
+            else:
+                room_title = "Standard Room"
+
             results.append({
                 "id": str(b.id),
                 "booking_type": "hostel",
@@ -78,7 +88,7 @@ class GuestBookingsListView(APIView):
                 "property_id": b.hostel_id,
                 "property_slug": b.hostel.slug if b.hostel else None,
                 "property_name": b.hostel.name if b.hostel else "Hostel Stay",
-                "room_title": b.room_type.name if b.room_type else "Standard Room",
+                "room_title": room_title,
                 "check_in": b.check_in.isoformat() if b.check_in else None,
                 "check_out": b.check_out.isoformat() if b.check_out else None,
                 "status": b.status,
@@ -113,7 +123,7 @@ class GuestBookingsListView(APIView):
                 "property_id": str(b.hotel_id) if b.hotel_id else None,
                 "property_slug": b.hotel.slug if b.hotel else None,
                 "property_name": b.hotel.name if b.hotel else "Hotel Stay",
-                "room_title": b.room_type.name if b.room_type else "Hotel Suite",
+                "room_title": getattr(b.room_type, "name", "Hotel Suite") if b.room_type else "Hotel Suite",
                 "check_in": b.check_in_date.isoformat() if b.check_in_date else None,
                 "check_out": b.check_out_date.isoformat() if b.check_out_date else None,
                 "status": b.status,
@@ -220,9 +230,41 @@ class StaffVerifyGuestDocView(APIView):
                 guest_profile = getattr(hotel_booking.user, "guest_profile", None)
 
         if not guest_profile:
+            try:
+                from vacanationrentals.models import VacationRentalBooking
+                vr_booking = (
+                    VacationRentalBooking.objects.select_related("rental", "user")
+                    .filter(booking_reference=booking_ref)
+                    .first()
+                )
+                if vr_booking and vr_booking.user:
+                    if not can_view(
+                        vr_booking.user,
+                        {vr_booking.owner_id, vr_booking.host_id, getattr(vr_booking.rental, "host_id", None)},
+                    ):
+                        return Response(
+                            {"detail": "You do not have permission to view this guest's documents."},
+                            status=status.HTTP_403_FORBIDDEN,
+                        )
+                    guest_profile = getattr(vr_booking.user, "guest_profile", None)
+            except Exception:
+                pass
+
+        if not guest_profile:
             return Response(
                 {"detail": "Guest profile not found for this booking."},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Ensure that non-staff property owners only see documents if guest has granted sharing authorization
+        if not user.is_staff and guest_profile.user != user and not guest_profile.share_id_with_host:
+            return Response(
+                {
+                    "detail": "Guest has not authorized sharing ID document with the property owner.",
+                    "is_shared": False,
+                    "id_verification_status": guest_profile.id_verification_status,
+                },
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         serializer = GuestProfileSerializer(guest_profile, context={"request": request})

@@ -230,6 +230,42 @@ class HotelBookingSerializer(serializers.ModelSerializer):
     mobile_number = serializers.CharField(source="guest_details.mobile_number", read_only=True)
     payment_method = serializers.CharField(source="payment_details.payment_method", read_only=True)
     payment_status = serializers.CharField(source="payment_details.payment_status", read_only=True)
+    guest_id_document = serializers.SerializerMethodField()
+
+    def get_guest_id_document(self, obj):
+        import os
+        user = obj.user
+        if not user and hasattr(obj, "guest_details") and obj.guest_details:
+            from accounts.models import User
+            email = getattr(obj.guest_details, "guest_email", None)
+            phone = getattr(obj.guest_details, "mobile_number", None)
+            if email:
+                user = User.objects.filter(email__iexact=email).first()
+            if not user and phone:
+                user = User.objects.filter(phone=phone).first()
+
+        if not user:
+            return None
+        profile = getattr(user, "guest_profile", None)
+        if not profile or not profile.aadhaar_card_file:
+            return None
+
+        is_shared = getattr(profile, "share_id_with_host", False)
+        request = self.context.get("request")
+        file_url = (
+            request.build_absolute_uri(profile.aadhaar_card_file.url)
+            if (request and is_shared)
+            else (profile.aadhaar_card_file.url if is_shared else None)
+        )
+        return {
+            "has_document": True,
+            "is_shared": is_shared,
+            "status": profile.id_verification_status,
+            "aadhaar_number": profile.aadhaar_number if is_shared else None,
+            "file_name": os.path.basename(profile.aadhaar_card_file.name) if is_shared else None,
+            "file_url": file_url,
+            "verified_at": profile.verified_at.isoformat() if profile.verified_at else None,
+        }
 
     class Meta:
         model = HotelBooking
@@ -257,6 +293,7 @@ class HotelBookingSerializer(serializers.ModelSerializer):
             "payment_method",
             "payment_status",
             "guest_details",
+            "guest_id_document",
             "payment_details",
             "cancellation_details",
             "created_at",

@@ -9,6 +9,42 @@ class BookingSerializer(serializers.ModelSerializer):
     room_category = serializers.SerializerMethodField()
     payment_id = serializers.SerializerMethodField()
     payment_status = serializers.SerializerMethodField()
+    guest_id_document = serializers.SerializerMethodField()
+
+    def get_guest_id_document(self, obj):
+        import os
+        user = obj.user
+        if not user:
+            from accounts.models import User
+            email = getattr(obj, "guest_email", None)
+            phone = getattr(obj, "mobile_number", None)
+            if email:
+                user = User.objects.filter(email__iexact=email).first()
+            if not user and phone:
+                user = User.objects.filter(phone=phone).first()
+
+        if not user:
+            return None
+        profile = getattr(user, "guest_profile", None)
+        if not profile or not profile.aadhaar_card_file:
+            return None
+
+        is_shared = getattr(profile, "share_id_with_host", False)
+        request = self.context.get("request")
+        file_url = (
+            request.build_absolute_uri(profile.aadhaar_card_file.url)
+            if (request and is_shared)
+            else (profile.aadhaar_card_file.url if is_shared else None)
+        )
+        return {
+            "has_document": True,
+            "is_shared": is_shared,
+            "status": profile.id_verification_status,
+            "aadhaar_number": profile.aadhaar_number if is_shared else None,
+            "file_name": os.path.basename(profile.aadhaar_card_file.name) if is_shared else None,
+            "file_url": file_url,
+            "verified_at": profile.verified_at.isoformat() if profile.verified_at else None,
+        }
 
     class Meta:
         model = Booking

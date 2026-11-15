@@ -93,6 +93,10 @@ class GuestProfile(SoftDeleteModel):
         choices=VerificationStatus.choices,
         default=VerificationStatus.UNVERIFIED,
     )
+    share_id_with_host = models.BooleanField(
+        default=False,
+        help_text="Guest authorization to share Aadhaar details with property owner for check-in",
+    )
     verified_at = models.DateTimeField(blank=True, null=True)
     rejection_reason = models.CharField(max_length=255, blank=True, null=True)
 
