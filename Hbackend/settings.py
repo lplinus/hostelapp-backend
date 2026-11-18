@@ -88,6 +88,7 @@ INSTALLED_APPS = [
     "publicpages",
     "matching",
     "notifications",
+    "adsense.apps.AdsenseConfig",
 
     #AI==================
     "AI",
@@ -104,6 +105,12 @@ INSTALLED_APPS = [
     # Hotels & Vacation Rentals
     "hotels",
     "vacanationrentals",
+
+    # Super Admin
+    "superadmin.apps.SuperadminConfig",
+
+    # Maps & Location Pinpoint
+    "maps.apps.MapsConfig",
 
     "django_cleanup.apps.CleanupConfig",
 ]
@@ -325,6 +332,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Increase max upload size to avoid early rejection (actual limit handled by StorageSettings)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100MB
+
+# ==============================================================================
+# GUEST PROFILE & KYC DOCUMENT UPLOAD SETTINGS
+# ==============================================================================
+# Maximum documents a guest can upload across primary guest and accompanying members.
+# Managed manually by the superadmin. When changed (e.g. set to 3), the frontend and
+# backend validation will immediately reflect this limit (including the primary guest).
+MAX_GUEST_DOCUMENT_UPLOADS = 3
 
 # Railway Proxy settings
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

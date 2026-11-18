@@ -256,6 +256,8 @@ class VacationRentalBookingSerializer(serializers.ModelSerializer):
     mobile_number = serializers.CharField(source="guest_details.mobile_number", read_only=True)
     payment_method = serializers.CharField(source="pricing_details.payment_method", read_only=True)
     payment_status = serializers.CharField(source="pricing_details.payment_status", read_only=True)
+    check_in_time = serializers.TimeField(source="rental.check_in_time", read_only=True)
+    check_out_time = serializers.TimeField(source="rental.check_out_time", read_only=True)
     guest_id_document = serializers.SerializerMethodField()
 
     def get_guest_id_document(self, obj):
@@ -308,6 +310,8 @@ class VacationRentalBookingSerializer(serializers.ModelSerializer):
             "owner_email",
             "check_in_date",
             "check_out_date",
+            "check_in_time",
+            "check_out_time",
             "number_of_nights",
             "total_price",
             "status",

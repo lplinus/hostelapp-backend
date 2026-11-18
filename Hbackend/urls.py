@@ -92,6 +92,7 @@ urlpatterns = [
     path("api/publicpages/", include("publicpages.urls")),
     path("api/matching/", include("matching.urls")),
     path("api/notifications/", include("notifications.urls")),
+    path("api/adsense/",include("adsense.urls")),
     path(
         "api/dashboard/stats/",
         __import__(
@@ -127,6 +128,13 @@ urlpatterns = [
 
     # guest profile
     path("api/guestprofile/", include("guestprofile.urls")),
+
+    # superadmin
+    path("api/admin/", include("superadmin.urls")),
+    path("api/superadmin/", include("superadmin.urls")),
+
+    # maps & geolocation
+    path("api/maps/", include("maps.urls")),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

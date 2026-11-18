@@ -1,3 +1,4 @@
+import os
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -6,11 +7,47 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db.models import Q
 from django.core.exceptions import ValidationError
 
-from .models import GuestProfile
-from .serializers import GuestProfileSerializer
+from .models import GuestProfile, GuestDocument, validate_id_document
+from .serializers import GuestProfileSerializer, GuestDocumentSerializer
 from bookings.models import Booking
 from hotels.models import HotelBooking
 from vacanationrentals.models import VacationRentalBooking
+
+
+def get_booking_occupancy(user, booking_ref):
+    """
+    Helper to look up allowed guest occupancy for a booking reference
+    across Hostels, Hotels, and Vacation Rentals.
+    """
+    if not booking_ref:
+        return None
+
+    # 1. Hostel Booking
+    try:
+        hb = Booking.objects.filter(id=booking_ref).first()
+        if hb and (hb.user == user or hb.guest_email == user.email):
+            return hb.guests_count or getattr(hb, "adults", 1) or 1
+    except Exception:
+        pass
+
+    # 2. Hotel Booking
+    try:
+        hotel_b = HotelBooking.objects.filter(booking_reference=booking_ref).first()
+        if hotel_b and (hotel_b.user == user or (getattr(hotel_b, "guest_details", None) and hotel_b.guest_details.guest_email == user.email)):
+            adults = getattr(hotel_b.guest_details, "adults_count", None) if hasattr(hotel_b, "guest_details") else None
+            return adults or (hotel_b.number_of_rooms * 2) or 2
+    except Exception:
+        pass
+
+    # 3. Vacation Rental Booking
+    try:
+        vrb = VacationRentalBooking.objects.filter(booking_reference=booking_ref).first()
+        if vrb and (vrb.user == user or (getattr(vrb, "guest_details", None) and vrb.guest_details.guest_email == user.email)):
+            return getattr(vrb, "total_guests", None) or getattr(vrb, "adults", None) or (getattr(vrb.rental, "max_guests", None) if hasattr(vrb, "rental") else 2) or 2
+    except Exception:
+        pass
+
+    return None
 
 
 class CurrentGuestProfileView(APIView):
@@ -38,6 +75,235 @@ class CurrentGuestProfileView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class GuestDocumentsView(APIView):
+    """
+    List and upload guest & member identity documents.
+    Enforces configurable max_document_uploads and booking occupancy limits.
+    Stores files securely on Bunny CDN with original filenames and document categories tracked separately.
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get(self, request):
+        profile, _ = GuestProfile.objects.get_or_create(user=request.user)
+        booking_ref = request.query_params.get("booking_ref", "").strip()
+
+        # Base limit from superadmin settings or profile override
+        max_allowed = profile.effective_max_document_uploads
+
+        # If booking_ref provided, compute occupancy limit
+        if booking_ref:
+            occupancy = get_booking_occupancy(request.user, booking_ref)
+            if occupancy and occupancy > 0:
+                max_allowed = min(occupancy, max_allowed)
+            docs = profile.documents.filter(is_deleted=0, booking_reference=booking_ref)
+        else:
+            docs = profile.documents.filter(is_deleted=0)
+
+        serializer = GuestDocumentSerializer(docs, many=True, context={"request": request})
+        doc_list = list(serializer.data)
+
+        # Backward compatibility: include legacy primary aadhaar if not yet in GuestDocument
+        if not any(d.get("is_primary_guest") for d in doc_list) and profile.aadhaar_card_file:
+            legacy_item = {
+                "id": str(profile.id),
+                "is_primary_guest": True,
+                "member_name": profile.full_name or "Primary Guest",
+                "document_type": "aadhaar",
+                "document_type_name": "Aadhaar Card",
+                "document_number": profile.aadhaar_number or "",
+                "file": profile.aadhaar_card_file.name,
+                "file_url": profile.aadhaar_card_file.url,
+                "file_name": profile.aadhaar_original_name or os.path.basename(profile.aadhaar_card_file.name),
+                "file_size": 0,
+                "booking_reference": "",
+                "verification_status": profile.id_verification_status,
+                "created_at": profile.created_at.isoformat() if profile.created_at else None,
+                "updated_at": profile.updated_at.isoformat() if profile.updated_at else None,
+            }
+            doc_list.insert(0, legacy_item)
+
+        uploaded_count = len(doc_list)
+        remaining_slots = max(0, max_allowed - uploaded_count)
+
+        return Response({
+            "documents": doc_list,
+            "max_allowed": max_allowed,
+            "uploaded_count": uploaded_count,
+            "remaining_slots": remaining_slots,
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        profile, _ = GuestProfile.objects.get_or_create(user=request.user)
+        file_obj = request.FILES.get("file") or request.FILES.get("aadhaar_card_file")
+        if not file_obj:
+            return Response({"detail": "No document file was provided for upload."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate file format and size
+        try:
+            validate_id_document(file_obj)
+        except ValidationError as e:
+            msg = e.message if hasattr(e, "message") else str(e)
+            return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        is_primary_raw = request.data.get("is_primary_guest", "false")
+        is_primary = str(is_primary_raw).lower() in ("true", "1", "yes")
+
+        member_name = request.data.get("member_name", "").strip()
+        if not member_name:
+            member_name = profile.full_name or request.user.get_full_name() or "Primary Guest"
+
+        document_type = request.data.get("document_type", "aadhaar").strip().lower()
+        valid_types = [c[0] for c in GuestDocument.DocumentCategory.choices]
+        if document_type not in valid_types:
+            document_type = "other"
+
+        document_number = request.data.get("document_number", "").strip()
+        booking_ref = request.data.get("booking_reference", "").strip()
+
+        # Limit enforcement from superadmin settings or profile override
+        max_allowed = profile.effective_max_document_uploads
+        if booking_ref:
+            occupancy = get_booking_occupancy(request.user, booking_ref)
+            if occupancy and occupancy > 0:
+                max_allowed = min(occupancy, max_allowed)
+            current_count = profile.documents.filter(is_deleted=0, booking_reference=booking_ref).count()
+        else:
+            current_count = profile.documents.filter(is_deleted=0).count()
+
+        # Account for legacy primary aadhaar if not yet in GuestDocument table
+        has_legacy_primary = bool(profile.aadhaar_card_file and not profile.documents.filter(is_deleted=0, is_primary_guest=True).exists())
+        total_count = current_count + (1 if has_legacy_primary else 0)
+
+        # If primary guest doc already exists, replace it
+        if is_primary:
+            existing_primary = profile.documents.filter(is_deleted=0, is_primary_guest=True).first()
+            if existing_primary:
+                # Purge old file from Bunny Storage
+                if existing_primary.file:
+                    try:
+                        existing_primary.file.delete(save=False)
+                    except Exception:
+                        pass
+                existing_primary.file = file_obj
+                existing_primary.file_name = file_obj.name
+                existing_primary.file_size = getattr(file_obj, "size", 0)
+                existing_primary.member_name = member_name
+                existing_primary.document_type = document_type
+                if document_number:
+                    existing_primary.document_number = document_number
+                if booking_ref:
+                    existing_primary.booking_reference = booking_ref
+                existing_primary.verification_status = GuestDocument.VerificationStatus.VERIFIED
+                existing_primary.save()
+
+                profile.aadhaar_original_name = file_obj.name
+                profile.id_verification_status = GuestProfile.VerificationStatus.VERIFIED
+                profile.save(update_fields=["aadhaar_original_name", "id_verification_status"])
+
+                serializer = GuestDocumentSerializer(existing_primary, context={"request": request})
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            elif has_legacy_primary:
+                # Replacing legacy primary document does not increase count
+                total_count = max(0, total_count - 1)
+
+        # For member documents (or first primary doc), enforce upload limit
+        if total_count >= max_allowed:
+            return Response(
+                {"detail": f"Upload limit reached. You can upload a maximum of {max_allowed} documents for this booking/profile."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create new document record with exact original file_name preserved
+        doc = GuestDocument.objects.create(
+            guest_profile=profile,
+            is_primary_guest=is_primary,
+            member_name=member_name,
+            document_type=document_type,
+            document_number=document_number,
+            file=file_obj,
+            file_name=file_obj.name,
+            file_size=getattr(file_obj, "size", 0),
+            booking_reference=booking_ref or None,
+            verification_status=GuestDocument.VerificationStatus.VERIFIED,
+        )
+
+        if is_primary:
+            profile.aadhaar_original_name = file_obj.name
+            profile.id_verification_status = GuestProfile.VerificationStatus.VERIFIED
+            profile.save(update_fields=["aadhaar_original_name", "id_verification_status"])
+
+        serializer = GuestDocumentSerializer(doc, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class GuestDocumentDetailView(APIView):
+    """
+    Delete or update an individual guest/member document.
+    Ensures file is completely purged from Bunny CDN and record is safely removed.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        profile, _ = GuestProfile.objects.get_or_create(user=request.user)
+        try:
+            doc = GuestDocument.objects.get(id=pk, guest_profile=profile, is_deleted=0)
+        except GuestDocument.DoesNotExist:
+            # Check legacy primary deletion
+            if str(profile.id) == str(pk) and profile.aadhaar_card_file:
+                try:
+                    profile.aadhaar_card_file.delete(save=False)
+                except Exception:
+                    pass
+                profile.aadhaar_card_file = None
+                profile.aadhaar_original_name = None
+                profile.id_verification_status = GuestProfile.VerificationStatus.UNVERIFIED
+                profile.save()
+                return Response({"detail": "Document deleted successfully."}, status=status.HTTP_200_OK)
+            return Response({"detail": "Document not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Purge file from Bunny Storage
+        if doc.file:
+            try:
+                doc.file.delete(save=False)
+            except Exception:
+                pass
+
+        is_primary = doc.is_primary_guest
+        doc.delete()
+
+        if is_primary:
+            profile.aadhaar_card_file = None
+            profile.aadhaar_original_name = None
+            profile.id_verification_status = GuestProfile.VerificationStatus.UNVERIFIED
+            profile.save(update_fields=["aadhaar_card_file", "aadhaar_original_name", "id_verification_status"])
+
+        return Response({"detail": "Document deleted successfully."}, status=status.HTTP_200_OK)
+
+    def patch(self, request, pk):
+        profile, _ = GuestProfile.objects.get_or_create(user=request.user)
+        try:
+            doc = GuestDocument.objects.get(id=pk, guest_profile=profile, is_deleted=0)
+        except GuestDocument.DoesNotExist:
+            return Response({"detail": "Document not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        member_name = request.data.get("member_name")
+        if member_name and member_name.strip():
+            doc.member_name = member_name.strip()
+
+        document_type = request.data.get("document_type")
+        if document_type:
+            doc.document_type = document_type.strip().lower()
+
+        document_number = request.data.get("document_number")
+        if document_number is not None:
+            doc.document_number = document_number.strip()
+
+        doc.save()
+        serializer = GuestDocumentSerializer(doc, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class GuestBookingsListView(APIView):
@@ -179,8 +445,8 @@ class GuestBookingsListView(APIView):
 
 class StaffVerifyGuestDocView(APIView):
     """
-    Staff / Hostel Owner endpoint to verify or review a guest's Aadhaar
-    document directly from a booking reference for seamless check-in.
+    Staff / Hostel Owner endpoint to verify or review a guest's Aadhaar & member
+    documents directly from a booking reference for seamless check-in.
     """
     permission_classes = [IsAuthenticated]
 
@@ -188,17 +454,16 @@ class StaffVerifyGuestDocView(APIView):
         user = request.user
 
         def can_view(booking_user, owner_ids):
-            # Only staff, the property owner, or the guest themself may see ID documents
             return user.is_staff or booking_user == user or user.id in owner_ids
 
-        # Find booking across hostel or hotel
+        # Find booking across hostel, hotel, or vacation rental
+        hostel_booking = None
         try:
             hostel_booking = (
                 Booking.objects.select_related("hostel", "user").filter(id=booking_ref).first()
             )
         except (ValueError, ValidationError):
-            # booking_ref is not a UUID (e.g. a hotel booking reference)
-            hostel_booking = None
+            pass
 
         guest_profile = None
         if hostel_booking and hostel_booking.user:
@@ -231,7 +496,6 @@ class StaffVerifyGuestDocView(APIView):
 
         if not guest_profile:
             try:
-                from vacanationrentals.models import VacationRentalBooking
                 vr_booking = (
                     VacationRentalBooking.objects.select_related("rental", "user")
                     .filter(booking_reference=booking_ref)
@@ -256,7 +520,6 @@ class StaffVerifyGuestDocView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Ensure that non-staff property owners only see documents if guest has granted sharing authorization
         if not user.is_staff and guest_profile.user != user and not guest_profile.share_id_with_host:
             return Response(
                 {
