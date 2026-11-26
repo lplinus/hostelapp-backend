@@ -200,7 +200,9 @@ class LiveSeasonalMultiplierSerializer(serializers.ModelSerializer):
         model = LiveSeasonalMultiplier
         fields = [
             "id",
+            "stream",
             "hotel",
+            "vacation_rental",
             "name",
             "multiplier",
             "dates",
@@ -216,7 +218,9 @@ class LiveMinStayRuleSerializer(serializers.ModelSerializer):
         model = LiveMinStayRule
         fields = [
             "id",
+            "stream",
             "hotel",
+            "vacation_rental",
             "standard_min_nights",
             "weekend_min_nights",
             "created_at",
@@ -230,7 +234,9 @@ class LivePromoCouponSerializer(serializers.ModelSerializer):
         model = LivePromoCoupon
         fields = [
             "id",
+            "stream",
             "hotel",
+            "vacation_rental",
             "code",
             "discount",
             "min_nights",

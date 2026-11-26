@@ -81,6 +81,10 @@ class Hotel(SoftDeleteModel):
         max_digits=10, decimal_places=2, null=True, blank=True,
         help_text="Starting nightly rate, automatically updated from room types",
     )
+    dynamic_starting_price_per_night = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Active dynamic starting nightly rate from live operations",
+    )
 
     # Amenities & Policies
     amenities = models.ManyToManyField("amenities.Amenity", related_name="hotels", blank=True)
@@ -122,12 +126,17 @@ class Hotel(SoftDeleteModel):
 
     def update_starting_price(self):
         """
-        Calculates and updates starting_price_per_night based on the lowest active room type.
+        Calculates and updates starting_price_per_night and dynamic_starting_price_per_night
+        based on the lowest active room type.
         """
-        lowest_room = self.room_types.filter(is_available=True).order_by("base_price_per_night").first()
-        if lowest_room:
-            self.starting_price_per_night = lowest_room.base_price_per_night
-            self.save(update_fields=["starting_price_per_night"])
+        active_rooms = list(self.room_types.filter(is_available=True))
+        if active_rooms:
+            lowest_base = min(r.base_price_per_night for r in active_rooms)
+            lowest_effective = min(r.effective_price_per_night for r in active_rooms)
+            has_dynamic = any(r.dynamic_price_per_night is not None for r in active_rooms)
+            self.starting_price_per_night = lowest_base
+            self.dynamic_starting_price_per_night = lowest_effective if has_dynamic else None
+            self.save(update_fields=["starting_price_per_night", "dynamic_starting_price_per_night"])
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -142,6 +151,18 @@ class Hotel(SoftDeleteModel):
         delete_old_image_files(self, ["og_image"])
         process_image_fields(self, ["og_image"])
         super().save(*args, **kwargs)
+
+    max_images = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Optional override for max images allowed on this hotel (defaults to StorageSettings).",
+    )
+
+    def get_max_images(self):
+        if self.max_images is not None:
+            return self.max_images
+        from cms.models import StorageSettings
+        return StorageSettings.get_image_limits()["max_images_per_property"]
 
 
 class HotelRoomType(SoftDeleteModel):
@@ -186,6 +207,13 @@ class HotelRoomType(SoftDeleteModel):
 
     # Pricing & Inclusions
     base_price_per_night = models.DecimalField(max_digits=10, decimal_places=2)
+    dynamic_price_per_night = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Live-operations dynamic nightly rate override; falls back to base_price_per_night when unset",
+    )
     tax_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("12.00"))
     includes_breakfast = models.BooleanField(default=False)
     is_refundable = models.BooleanField(default=True)
@@ -199,6 +227,11 @@ class HotelRoomType(SoftDeleteModel):
     )
 
     is_available = models.BooleanField(default=True)
+    max_images = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Optional override for max images allowed on this room type (defaults to StorageSettings).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -207,6 +240,20 @@ class HotelRoomType(SoftDeleteModel):
 
     def __str__(self):
         return f"{self.hotel.name} - {self.name} (₹{self.base_price_per_night}/night)"
+
+    def get_max_images(self):
+        if self.max_images is not None:
+            return self.max_images
+        from cms.models import StorageSettings
+        return StorageSettings.get_image_limits()["max_images_per_hotel_room"]
+
+    @property
+    def effective_price_per_night(self):
+        return (
+            self.dynamic_price_per_night
+            if self.dynamic_price_per_night is not None
+            else self.base_price_per_night
+        )
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -243,6 +290,28 @@ class HotelImage(SoftDeleteModel):
 
     class Meta:
         ordering = ["order", "-is_primary", "-created_at"]
+
+    @classmethod
+    def validate_upload_quota(cls, hotel, room_type=None, incoming_count=1):
+        """Enforce model-controlled property and room-type image limits."""
+        from django.core.exceptions import ValidationError
+
+        hotel_limit = hotel.get_max_images()
+        hotel_existing = hotel.images.count()
+        if hotel_existing + incoming_count > hotel_limit:
+            remaining = max(0, hotel_limit - hotel_existing)
+            raise ValidationError(
+                f"Maximum {hotel_limit} images allowed per hotel ({remaining} remaining)."
+            )
+
+        if room_type is not None:
+            room_limit = room_type.get_max_images()
+            room_existing = room_type.images.count()
+            if room_existing + incoming_count > room_limit:
+                remaining = max(0, room_limit - room_existing)
+                raise ValidationError(
+                    f"Maximum {room_limit} images allowed for {room_type.name} ({remaining} remaining)."
+                )
 
     def save(self, *args, **kwargs):
         # Use the same ImageUploadService as HostelImage for fast cloud uploads

@@ -91,6 +91,20 @@ class VacationRental(SoftDeleteModel):
         blank=True,
         help_text="Optional surge pricing for Friday & Saturday",
     )
+    dynamic_price_per_night = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Live-operations dynamic nightly price; falls back to price_per_night when unset",
+    )
+    dynamic_weekend_price_per_night = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Live-operations dynamic weekend price; falls back to weekend_price_per_night when unset",
+    )
     cleaning_fee = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -174,12 +188,27 @@ class VacationRental(SoftDeleteModel):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    max_images = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Optional override for max images allowed on this vacation rental (defaults to StorageSettings).",
+    )
 
     class Meta:
         ordering = ["-is_featured", "-rating_avg", "-created_at"]
 
     def __str__(self):
         return f"{self.title} ({self.get_category_display()} in {self.city.name})"
+
+    def get_max_images(self):
+        if self.max_images is not None:
+            return self.max_images
+        from cms.models import StorageSettings
+        return StorageSettings.get_image_limits()["max_images_per_property"]
+
+    def get_max_images_per_space(self):
+        from cms.models import StorageSettings
+        return StorageSettings.get_image_limits()["max_images_per_vacation_space"]
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -197,19 +226,81 @@ class VacationRental(SoftDeleteModel):
 
 
 class VacationRentalImage(SoftDeleteModel):
+    class SpaceType(models.TextChoices):
+        LIVING_HALL = "living_hall", "Living Hall"
+        BEDROOM = "bedroom", "Bedroom"
+        KITCHEN = "kitchen", "Kitchen"
+        BATHROOM = "bathroom", "Bathroom"
+        BALCONY_PATIO = "balcony_patio", "Balcony / Patio"
+        POOL_GARDEN = "pool_garden", "Pool / Garden"
+        EXTERIOR = "exterior", "Exterior"
+        OTHER = "other", "Other"
+
     rental = models.ForeignKey(VacationRental, on_delete=models.CASCADE, related_name="images")
     image = models.ImageField(upload_to="vacation_rentals/", max_length=500, validators=[validate_image_size])
+    space = models.CharField(
+        max_length=30,
+        choices=SpaceType.choices,
+        default=SpaceType.OTHER,
+        help_text="Space / area shown in this photo (e.g. Kitchen, Bedroom, Living Hall).",
+    )
     caption = models.CharField(max_length=255, blank=True, null=True, help_text="e.g. Master Bedroom, Infinity Pool")
     is_primary = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
+    provider = models.CharField(
+        max_length=20,
+        choices=[("imagekit", "ImageKit"), ("cloudinary", "Cloudinary")],
+        default="imagekit",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["order", "-is_primary", "-created_at"]
 
+    @classmethod
+    def validate_upload_quota(cls, rental, space=None, incoming_count=1):
+        """Enforce model-controlled property and per-space image limits."""
+        from django.core.exceptions import ValidationError
+
+        rental_limit = rental.get_max_images()
+        existing = rental.images.count()
+        if existing + incoming_count > rental_limit:
+            remaining = max(0, rental_limit - existing)
+            raise ValidationError(
+                f"Maximum {rental_limit} images allowed per property ({remaining} remaining)."
+            )
+
+        if space is not None:
+            space_limit = rental.get_max_images_per_space()
+            space_existing = rental.images.filter(space=space).count()
+            if space_existing + incoming_count > space_limit:
+                remaining = max(0, space_limit - space_existing)
+                space_label = dict(cls.SpaceType.choices).get(space, space)
+                raise ValidationError(
+                    f"Maximum {space_limit} images allowed for {space_label} ({remaining} remaining)."
+                )
+
     def save(self, *args, **kwargs):
+        from hostels.services import ImageUploadService
+        from cms.models import StorageSettings
+
         delete_old_image_files(self, ["image"])
-        process_image_fields(self, ["image"])
+        self.provider = StorageSettings.get_active_provider()
+
+        field_file = self.image
+        if field_file and hasattr(field_file, "file") and not str(field_file).startswith("http"):
+            service = ImageUploadService()
+            rental_obj = getattr(self, "rental", None) or VacationRental.objects.filter(id=getattr(self, "rental_id", None)).first()
+            rental_slug = getattr(rental_obj, "slug", None) or f"rental-{getattr(self, 'rental_id', 'unknown')}"
+            folder = f"vacation_rentals/{rental_slug}"
+            orig_name = getattr(field_file, "name", "image")
+            ext = os.path.splitext(orig_name)[1] or ".webp"
+            order_num = getattr(self, "order", 0) or 0
+            meaningful_name = f"{rental_slug}-{self.space}-{order_num + 1}{ext}"
+            result = service.upload_image(field_file, meaningful_name, folder=folder)
+            self.image = result["url"]
+            self.provider = result["provider"]
+
         super().save(*args, **kwargs)
 
     def __str__(self):

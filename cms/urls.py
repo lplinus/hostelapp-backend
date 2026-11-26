@@ -1,8 +1,9 @@
 from django.urls import path
-from .views import StorageSettingsView, TermsView, PrivacyPolicyView, FAQCategoryListView, FAQListView, FAQDetailView, FAQSearchView
+from .views import StorageSettingsView, UploadSignatureView, TermsView, PrivacyPolicyView, FAQCategoryListView, FAQListView, FAQDetailView, FAQSearchView
 
 urlpatterns = [
     path("settings/storage/", StorageSettingsView.as_view(), name="storage-settings"),
+    path("upload-signature/", UploadSignatureView.as_view(), name="upload-signature"),
     path("terms-and-conditions/", TermsView.as_view(), name="terms-and-conditions"),
     path("privacy-policy/", PrivacyPolicyView.as_view(), name="privacy-policy"),
     path("faq-categories/", FAQCategoryListView.as_view(), name="faq-categories"),

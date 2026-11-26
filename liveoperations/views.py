@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 from django.db.models import Q, Sum, Avg, Count
 from rest_framework import viewsets, permissions, status, decorators
@@ -183,7 +184,9 @@ class LiveOperationsCalendarView(APIView):
                         "room_number": rt.room_number or "",
                         "category": rt.room_category,
                         "category_display": rt.get_room_category_display() if hasattr(rt, "get_room_category_display") else rt.room_category,
-                        "price_per_night": str(rt.base_price_per_night or rt.price_per_night or 0),
+                        "price_per_night": str(rt.effective_price_per_night or 0),
+                        "base_price_per_night": str(rt.base_price_per_night or 0),
+                        "dynamic_price_per_night": str(rt.dynamic_price_per_night) if rt.dynamic_price_per_night is not None else None,
                     })
                 hotels_data.append({
                     "id": h.id,
@@ -204,7 +207,9 @@ class LiveOperationsCalendarView(APIView):
                     "category": r.category,
                     "category_display": r.get_category_display() if hasattr(r, "get_category_display") else r.category,
                     "bedrooms": r.bedrooms,
-                    "price_per_night": str(r.price_per_night),
+                    "price_per_night": str(r.dynamic_price_per_night if r.dynamic_price_per_night is not None else r.price_per_night),
+                    "base_price_per_night": str(r.price_per_night),
+                    "dynamic_price_per_night": str(r.dynamic_price_per_night) if r.dynamic_price_per_night is not None else None,
                     "cleaning_fee": str(r.cleaning_fee),
                     "security_deposit": str(r.security_deposit),
                 })
@@ -323,12 +328,19 @@ class _OwnerScopedRateViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return self.queryset.filter(owner=self.request.user)
+        qs = self.queryset.filter(owner=self.request.user)
+        stream = self.request.query_params.get("stream")
+        if stream in ["hotel", "vacation_rental"] and hasattr(self.queryset.model, "stream"):
+            qs = qs.filter(stream=stream)
+        return qs
 
     def perform_create(self, serializer):
         hotel = serializer.validated_data.get("hotel")
+        vacation = serializer.validated_data.get("vacation_rental") if "vacation_rental" in serializer.validated_data else None
         if hotel and hotel.owner != self.request.user and not self.request.user.is_staff:
             raise PermissionDenied("You do not own this hotel.")
+        if vacation and vacation.host != self.request.user and not self.request.user.is_staff:
+            raise PermissionDenied("You do not host this vacation rental.")
         serializer.save(owner=self.request.user)
 
 
@@ -350,3 +362,133 @@ class LiveMinStayRuleViewSet(_OwnerScopedRateViewSet):
 class LivePromoCouponViewSet(_OwnerScopedRateViewSet):
     queryset = LivePromoCoupon.objects.all()
     serializer_class = LivePromoCouponSerializer
+
+
+class LiveDynamicPriceView(APIView):
+    """
+    Updates owner-selected dynamic prices for HotelRoomType or VacationRental
+    without overwriting the underlying base price.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _parse_decimal(self, value, field_name):
+        if value is None or value == "":
+            return None
+        try:
+            dec = Decimal(str(value)).quantize(Decimal("0.01"))
+        except (InvalidOperation, ValueError):
+            raise ValueError(f"Invalid decimal value for {field_name}.")
+        if dec < Decimal("0"):
+            raise ValueError(f"{field_name} cannot be negative.")
+        return dec
+
+    def post(self, request):
+        return self._handle_update(request)
+
+    def patch(self, request):
+        return self._handle_update(request)
+
+    def _handle_update(self, request):
+        user = request.user
+        stream = request.data.get("stream")
+        item_id = request.data.get("item_id")
+        multiplier_raw = request.data.get("multiplier")
+
+        if stream not in ("hotel", "vacation_rental"):
+            return Response(
+                {"detail": "stream must be 'hotel' or 'vacation_rental'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Optional bulk multiplier mode: applies multiplier to all owner's items (or a single item_id)
+        if multiplier_raw is not None:
+            try:
+                mult = Decimal(str(multiplier_raw))
+                if mult <= Decimal("0"):
+                    raise ValueError("Multiplier must be positive.")
+            except (InvalidOperation, ValueError):
+                return Response(
+                    {"detail": "Invalid multiplier value."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            updated_ids = []
+            if stream == "hotel":
+                qs = HotelRoomType.objects.filter(hotel__owner=user)
+                if item_id:
+                    qs = qs.filter(id=item_id)
+                for rt in qs:
+                    rt.dynamic_price_per_night = (Decimal(str(rt.base_price_per_night)) * mult).quantize(Decimal("0.01"))
+                    rt.save()
+                    updated_ids.append(rt.id)
+            else:
+                qs = VacationRental.objects.filter(host=user)
+                if item_id:
+                    qs = qs.filter(id=item_id)
+                for rental in qs:
+                    rental.dynamic_price_per_night = (Decimal(str(rental.price_per_night)) * mult).quantize(Decimal("0.01"))
+                    if rental.weekend_price_per_night is not None:
+                        rental.dynamic_weekend_price_per_night = (
+                            Decimal(str(rental.weekend_price_per_night)) * mult
+                        ).quantize(Decimal("0.01"))
+                    rental.save(update_fields=["dynamic_price_per_night", "dynamic_weekend_price_per_night", "updated_at"])
+                    updated_ids.append(str(rental.id))
+
+            return Response({
+                "message": f"Dynamic prices updated using {mult}x multiplier.",
+                "updated_ids": updated_ids,
+            })
+
+        if not item_id:
+            return Response({"detail": "item_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            dyn_price = self._parse_decimal(
+                request.data.get("dynamic_price_per_night"),
+                "dynamic_price_per_night",
+            )
+            dyn_weekend_price = self._parse_decimal(
+                request.data.get("dynamic_weekend_price_per_night"),
+                "dynamic_weekend_price_per_night",
+            )
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if stream == "hotel":
+            rt = HotelRoomType.objects.select_related("hotel").filter(id=item_id).first()
+            if not rt:
+                return Response({"detail": "Hotel room type not found."}, status=status.HTTP_404_NOT_FOUND)
+            if rt.hotel.owner != user and not user.is_staff:
+                raise PermissionDenied("You do not own this hotel room type.")
+            rt.dynamic_price_per_night = dyn_price
+            rt.save()
+            return Response({
+                "id": rt.id,
+                "base_price_per_night": str(rt.base_price_per_night),
+                "dynamic_price_per_night": str(rt.dynamic_price_per_night) if rt.dynamic_price_per_night is not None else None,
+                "effective_price_per_night": str(rt.effective_price_per_night),
+                "hotel_dynamic_starting_price": (
+                    str(rt.hotel.dynamic_starting_price_per_night)
+                    if rt.hotel.dynamic_starting_price_per_night is not None
+                    else None
+                ),
+            })
+
+        rental = VacationRental.objects.filter(id=item_id).first()
+        if not rental:
+            return Response({"detail": "Vacation rental not found."}, status=status.HTTP_404_NOT_FOUND)
+        if rental.host != user and not user.is_staff:
+            raise PermissionDenied("You do not host this vacation rental.")
+
+        rental.dynamic_price_per_night = dyn_price
+        if "dynamic_weekend_price_per_night" in request.data:
+            rental.dynamic_weekend_price_per_night = dyn_weekend_price
+        rental.save(update_fields=["dynamic_price_per_night", "dynamic_weekend_price_per_night", "updated_at"])
+
+        return Response({
+            "id": str(rental.id),
+            "price_per_night": str(rental.price_per_night),
+            "weekend_price_per_night": str(rental.weekend_price_per_night) if rental.weekend_price_per_night is not None else None,
+            "dynamic_price_per_night": str(rental.dynamic_price_per_night) if rental.dynamic_price_per_night is not None else None,
+            "dynamic_weekend_price_per_night": str(rental.dynamic_weekend_price_per_night) if rental.dynamic_weekend_price_per_night is not None else None,
+        })

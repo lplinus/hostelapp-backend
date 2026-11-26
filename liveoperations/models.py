@@ -235,13 +235,25 @@ class LiveMealPlan(SoftDeleteModel):
 
 
 class LiveSeasonalMultiplier(SoftDeleteModel):
+    class Stream(models.TextChoices):
+        HOTEL = "hotel", "Hotel"
+        VACATION_RENTAL = "vacation_rental", "Vacation Rental"
+
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="live_seasonal_multipliers",
     )
+    stream = models.CharField(max_length=20, choices=Stream.choices, default=Stream.HOTEL)
     hotel = models.ForeignKey(
         "hotels.Hotel",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="live_seasonal_multipliers",
+    )
+    vacation_rental = models.ForeignKey(
+        "vacanationrentals.VacationRental",
         null=True,
         blank=True,
         on_delete=models.CASCADE,
@@ -264,13 +276,25 @@ class LiveSeasonalMultiplier(SoftDeleteModel):
 
 
 class LiveMinStayRule(SoftDeleteModel):
+    class Stream(models.TextChoices):
+        HOTEL = "hotel", "Hotel"
+        VACATION_RENTAL = "vacation_rental", "Vacation Rental"
+
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="live_min_stay_rules",
     )
+    stream = models.CharField(max_length=20, choices=Stream.choices, default=Stream.HOTEL)
     hotel = models.ForeignKey(
         "hotels.Hotel",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="live_min_stay_rules",
+    )
+    vacation_rental = models.ForeignKey(
+        "vacanationrentals.VacationRental",
         null=True,
         blank=True,
         on_delete=models.CASCADE,
@@ -291,13 +315,25 @@ class LiveMinStayRule(SoftDeleteModel):
 
 
 class LivePromoCoupon(SoftDeleteModel):
+    class Stream(models.TextChoices):
+        HOTEL = "hotel", "Hotel"
+        VACATION_RENTAL = "vacation_rental", "Vacation Rental"
+
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="live_promo_coupons",
     )
+    stream = models.CharField(max_length=20, choices=Stream.choices, default=Stream.HOTEL)
     hotel = models.ForeignKey(
         "hotels.Hotel",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="live_promo_coupons",
+    )
+    vacation_rental = models.ForeignKey(
+        "vacanationrentals.VacationRental",
         null=True,
         blank=True,
         on_delete=models.CASCADE,

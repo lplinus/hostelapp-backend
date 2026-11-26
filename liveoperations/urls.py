@@ -11,6 +11,7 @@ from .views import (
     LivePromoCouponViewSet,
     LiveOperationsCalendarView,
     LiveOperationsAnalyticsView,
+    LiveDynamicPriceView,
 )
 
 router = DefaultRouter()
@@ -26,5 +27,6 @@ router.register(r"promo-coupons", LivePromoCouponViewSet, basename="promo-coupon
 urlpatterns = [
     path("calendar/", LiveOperationsCalendarView.as_view(), name="live-operations-calendar"),
     path("analytics/", LiveOperationsAnalyticsView.as_view(), name="live-operations-analytics"),
+    path("dynamic-prices/", LiveDynamicPriceView.as_view(), name="live-operations-dynamic-prices"),
     path("", include(router.urls)),
 ]

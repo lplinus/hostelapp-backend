@@ -28,6 +28,7 @@ class HotelRoomTypeSerializer(serializers.ModelSerializer):
     category_display = serializers.CharField(source="get_room_category_display", read_only=True)
     bed_display = serializers.CharField(source="get_bed_type_display", read_only=True)
     images = HotelImageSerializer(many=True, read_only=True)
+    max_images = serializers.IntegerField(source="get_max_images", read_only=True)
 
     class Meta:
         model = HotelRoomType
@@ -47,17 +48,20 @@ class HotelRoomTypeSerializer(serializers.ModelSerializer):
             "total_rooms",
             "rooms_available",
             "base_price_per_night",
+            "dynamic_price_per_night",
+            "effective_price_per_night",
             "tax_percentage",
             "includes_breakfast",
             "is_refundable",
             "room_size_sqft",
             "features",
             "is_available",
+            "max_images",
             "images",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "created_at", "updated_at")
+        read_only_fields = ("id", "effective_price_per_night", "max_images", "created_at", "updated_at")
 
 
 class HotelGuestSerializer(serializers.ModelSerializer):
@@ -128,6 +132,7 @@ class HotelSerializer(serializers.ModelSerializer):
     amenities_list = serializers.SerializerMethodField()
     reviews = serializers.SerializerMethodField()
     is_sponsored = serializers.BooleanField(read_only=True, default=False)
+    max_images = serializers.IntegerField(source="get_max_images", read_only=True)
 
     class Meta:
         model = Hotel
@@ -152,6 +157,7 @@ class HotelSerializer(serializers.ModelSerializer):
             "check_in_time",
             "check_out_time",
             "starting_price_per_night",
+            "dynamic_starting_price_per_night",
             "amenities",
             "amenities_list",
             "cancellation_policy",
@@ -166,6 +172,7 @@ class HotelSerializer(serializers.ModelSerializer):
             "og_image",
             "meta_title",
             "meta_description",
+            "max_images",
             "images",
             "room_types",
             "reviews",
@@ -539,7 +546,7 @@ class HotelBookingCreateSerializer(serializers.Serializer):
 
         # Calculate pricing
         nights = (check_out - check_in).days
-        rate = room_type.base_price_per_night
+        rate = room_type.effective_price_per_night
         base_amount = Decimal(str(rate)) * Decimal(str(nights)) * Decimal(str(num_rooms))
         tax_pct = room_type.tax_percentage or Decimal("12.00")
         tax_amount = (base_amount * tax_pct) / Decimal("100")
@@ -603,8 +610,7 @@ class HotelBookingCreateSerializer(serializers.Serializer):
             paid_at=timezone.now() if payment_status == HotelPayment.PaymentStatus.PAID else None,
         )
 
-        # 4. Decrement available room inventory
-        room_type.rooms_available = max(0, room_type.rooms_available - num_rooms)
-        room_type.save(update_fields=["rooms_available"])
+        # Availability is calculated from overlapping bookings for the date range
+        # (checked above), so the static rooms_available value is not changed here.
 
         return booking

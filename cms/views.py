@@ -5,7 +5,7 @@ FAQs, and general storage settings.
 """
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, permissions
 
 from cms.serializers import TermsSerializer, PrivacyPolicySerializer, FAQCategorySerializer, FAQSerializer, StorageSettingsSerializer
 from cms.services import TermsService, PrivacyPolicyService, FAQCategoryService, FAQService
@@ -108,3 +108,68 @@ class FAQDetailView(APIView):
         FAQService.increment_view_count(faq)
         serializer = FAQSerializer(faq)
         return Response(serializer.data)
+
+
+class UploadSignatureView(APIView):
+    """
+    Returns a short-lived signed upload token for direct browser-to-cloud uploads
+    (ImageKit or Cloudinary based on StorageSettings.get_active_provider()),
+    along with the active max_image_size_mb limit.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        import hashlib
+        import hmac
+        import time
+        import uuid
+        import cloudinary.utils
+        from django.conf import settings
+        from .models import StorageSettings
+
+        settings_obj = StorageSettings.objects.get_or_create(pk=1)[0]
+        provider = StorageSettings.get_active_provider()
+        raw_folder = (request.query_params.get("folder") or "uploads").strip("/")
+        folder = "".join(c for c in raw_folder if c.isalnum() or c in ("/", "-", "_")) or "uploads"
+
+        base_payload = {
+            "provider": provider,
+            "folder": folder,
+            "max_image_size_mb": settings_obj.max_image_size_mb,
+        }
+
+        if provider == StorageSettings.PROVIDER_CLOUDINARY:
+            timestamp = int(time.time())
+            sign_params = {
+                "timestamp": timestamp,
+                "folder": folder,
+                "allowed_formats": "webp,jpg,jpeg,png,gif",
+            }
+            signature = cloudinary.utils.api_sign_request(
+                sign_params,
+                settings.CLOUDINARY_API_SECRET,
+            )
+            return Response({
+                **base_payload,
+                "cloud_name": settings.CLOUDINARY_CLOUD_NAME,
+                "api_key": settings.CLOUDINARY_API_KEY,
+                "timestamp": timestamp,
+                "allowed_formats": "webp,jpg,jpeg,png,gif",
+                "signature": signature,
+            })
+
+        token = str(uuid.uuid4())
+        expire = int(time.time()) + 600
+        signature = hmac.new(
+            settings.IMAGEKIT_PRIVATE_KEY.encode("utf-8"),
+            f"{token}{expire}".encode("utf-8"),
+            hashlib.sha1,
+        ).hexdigest()
+        return Response({
+            **base_payload,
+            "public_key": settings.IMAGEKIT_PUBLIC_KEY,
+            "url_endpoint": settings.IMAGEKIT_URL_ENDPOINT,
+            "token": token,
+            "expire": expire,
+            "signature": signature,
+        })

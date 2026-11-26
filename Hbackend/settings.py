@@ -106,6 +106,7 @@ INSTALLED_APPS = [
     "hotels",
     "vacanationrentals",
     "liveoperations",
+    "financials",
 
     # Super Admin
     "superadmin.apps.SuperadminConfig",

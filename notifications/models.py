@@ -89,3 +89,53 @@ class FCMDevice(models.Model):
         owner = self.user.email if self.user else (self.vendor.business_name if self.vendor else 'Anonymous')
         return f"{owner} - {self.device_type} ({self.registration_token[:15]}...)"
 
+
+# ==============================================================================
+# 1-ON-1 HELP & SUPPORT CHAT MODELS (REST + POLLING, NO CHANNELS)
+# ==============================================================================
+
+class SupportThread(SoftDeleteModel):
+    class Subject(models.TextChoices):
+        BOOKING = 'booking', 'Booking Issue'
+        PAYMENT = 'payment', 'Payment / Refund'
+        COMPLAINT = 'complaint', 'Lodge a Complaint'
+        OTHER = 'other', 'Other Inquiry'
+
+    class Status(models.TextChoices):
+        OPEN = 'open', 'Open'
+        RESOLVED = 'resolved', 'Resolved'
+        CLOSED = 'closed', 'Closed'
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='support_threads')
+    subject = models.CharField(max_length=30, choices=Subject.choices, default=Subject.OTHER)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
+    last_message_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-last_message_at', '-created_at']
+        verbose_name = 'Support Thread'
+        verbose_name_plural = 'Support Threads'
+
+    def __str__(self):
+        return f"#{self.id} {self.user.email} ({self.get_subject_display()})"
+
+
+class SupportMessage(SoftDeleteModel):
+    thread = models.ForeignKey(SupportThread, on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='support_messages')
+    is_staff_reply = models.BooleanField(default=False)
+    body = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = 'Support Message'
+        verbose_name_plural = 'Support Messages'
+
+    def __str__(self):
+        role = 'Support' if self.is_staff_reply else self.sender.email
+        return f"{role}: {self.body[:40]}"
+

@@ -126,6 +126,7 @@ urlpatterns = [
     path("api/hotels/", include("hotels.urls")),
     path("api/vacanationrentals/", include("vacanationrentals.urls")),
     path("api/liveoperations/", include("liveoperations.urls")),
+    path("api/financials/", include("financials.urls")),
 
     # guest profile
     path("api/guestprofile/", include("guestprofile.urls")),

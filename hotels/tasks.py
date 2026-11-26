@@ -316,11 +316,7 @@ def cleanup_expired_hotel_bookings_task(default_expiry_minutes=25):
             booking.status = HotelBooking.BookingStatus.CANCELLED
             booking.save(update_fields=["status"])
 
-            # Restore room inventory
-            if booking.room_type:
-                room_type = HotelRoomType.objects.select_for_update().get(id=booking.room_type.id)
-                room_type.rooms_available += booking.number_of_rooms
-                room_type.save(update_fields=["rooms_available"])
+            # Availability is date-based, so the expired booking frees its rooms automatically.
 
             count += 1
 

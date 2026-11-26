@@ -136,6 +136,21 @@ class StorageSettings(models.Model):
         help_text="Global maximum size for image uploads in MB.",
     )
 
+    max_images_per_property = models.PositiveIntegerField(
+        default=25,
+        help_text="Default maximum number of images allowed per hotel or vacation rental property.",
+    )
+
+    max_images_per_hotel_room = models.PositiveIntegerField(
+        default=5,
+        help_text="Default maximum number of images allowed per hotel room type.",
+    )
+
+    max_images_per_vacation_space = models.PositiveIntegerField(
+        default=5,
+        help_text="Default maximum number of images allowed per vacation rental space (e.g. Kitchen, Bedroom).",
+    )
+
     image_storage_provider = models.CharField(
         max_length=20,
         choices=PROVIDER_CHOICES,
@@ -173,3 +188,20 @@ class StorageSettings(models.Model):
         except cls.DoesNotExist:
             from django.conf import settings
             return getattr(settings, "IMAGE_STORAGE_PROVIDER", cls.PROVIDER_IMAGEKIT)
+
+    @classmethod
+    def get_image_limits(cls):
+        """Returns global image count limits from StorageSettings (pk=1)."""
+        try:
+            obj = cls.objects.get(pk=1)
+            return {
+                "max_images_per_property": obj.max_images_per_property,
+                "max_images_per_hotel_room": obj.max_images_per_hotel_room,
+                "max_images_per_vacation_space": obj.max_images_per_vacation_space,
+            }
+        except cls.DoesNotExist:
+            return {
+                "max_images_per_property": 25,
+                "max_images_per_hotel_room": 5,
+                "max_images_per_vacation_space": 5,
+            }

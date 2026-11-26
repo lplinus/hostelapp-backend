@@ -1,3 +1,4 @@
+import logging
 from Hbackend.throttles import BookingOTPThrottle
 from datetime import timedelta
 from django.shortcuts import get_object_or_404
@@ -7,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from adsense.models import AdCampaign
 from adsense.services import get_active_banner_property_ids
@@ -29,6 +31,8 @@ from .serializers import (
 )
 from .filters import VacationRentalFilter
 from Hbackend.pagination import TenResultsSetPagination
+
+logger = logging.getLogger(__name__)
 
 
 def _ensure_rental_host(user, rental):
@@ -207,7 +211,7 @@ class VacationRentalImageViewSet(viewsets.ModelViewSet):
     queryset = VacationRentalImage.objects.select_related("rental").all()
     serializer_class = VacationRentalImageSerializer
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["rental"]
+    filterset_fields = ["rental", "space"]
 
     def get_permissions(self):
         if self.action in ["create", "update", "partial_update", "destroy"]:
@@ -229,6 +233,39 @@ class VacationRentalImageViewSet(viewsets.ModelViewSet):
 
         rental = get_object_or_404(VacationRental, id=rental_id)
         _ensure_rental_host(request.user, rental)
+
+        space = request.data.get("space") or VacationRentalImage.SpaceType.OTHER
+        if space not in VacationRentalImage.SpaceType.values:
+            space = VacationRentalImage.SpaceType.OTHER
+
+        # Direct-to-cloud registration path (browser already uploaded to ImageKit/Cloudinary)
+        raw_urls = request.data.get("image_urls")
+        if isinstance(raw_urls, list) and len(raw_urls) > 0:
+            clean_urls = [u for u in raw_urls if isinstance(u, str) and u.startswith(("https://", "http://"))]
+            if not clean_urls:
+                return Response({"detail": "Valid image_urls are required."}, status=status.HTTP_400_BAD_REQUEST)
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            from cms.models import StorageSettings
+            try:
+                VacationRentalImage.validate_upload_quota(rental, space=space, incoming_count=len(clean_urls))
+            except DjangoValidationError as exc:
+                return Response({"detail": exc.messages[0] if getattr(exc, "messages", None) else str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            provider = request.data.get("provider") or StorageSettings.get_active_provider()
+            existing_count = rental.images.count()
+            created = []
+            for idx, url in enumerate(clean_urls):
+                img = VacationRentalImage.objects.create(
+                    rental=rental,
+                    image=url,
+                    provider=provider,
+                    space=space,
+                    caption=f"{rental.title} Photo {existing_count + idx + 1}",
+                    order=existing_count + idx,
+                    is_primary=(existing_count == 0 and idx == 0),
+                )
+                created.append(VacationRentalImageSerializer(img, context={"request": request}).data)
+            return Response(created, status=status.HTTP_201_CREATED)
+
         image_files = []
         for key in ["images", "images[]", "image"]:
             if key in request.FILES:
@@ -240,12 +277,43 @@ class VacationRentalImageViewSet(viewsets.ModelViewSet):
         if not image_files:
             return Response({"detail": "No image files provided."}, status=status.HTTP_400_BAD_REQUEST)
 
-        created = []
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from Hbackend.utils import validate_image_size
+        from hostels.services import ImageUploadService
+        import os
+
+        space = request.data.get("space") or VacationRentalImage.SpaceType.OTHER
+        if space not in VacationRentalImage.SpaceType.values:
+            space = VacationRentalImage.SpaceType.OTHER
+
+        try:
+            for file_obj in image_files:
+                validate_image_size(file_obj)
+            VacationRentalImage.validate_upload_quota(rental, space=space, incoming_count=len(image_files))
+        except DjangoValidationError as exc:
+            return Response({"detail": exc.messages[0] if getattr(exc, "messages", None) else str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
         existing_count = rental.images.count()
-        for idx, file_obj in enumerate(image_files):
+        rental_slug = rental.slug or f"rental-{rental.id}"
+        batch_items = [
+            (
+                file_obj,
+                f"{rental_slug}-{space}-{existing_count + idx + 1}{os.path.splitext(getattr(file_obj, 'name', 'image'))[1] or '.webp'}",
+            )
+            for idx, file_obj in enumerate(image_files)
+        ]
+        uploaded_results = ImageUploadService().upload_images_batch(
+            batch_items,
+            folder=f"vacation_rentals/{rental_slug}",
+        )
+
+        created = []
+        for idx, res in enumerate(uploaded_results):
             img = VacationRentalImage.objects.create(
                 rental=rental,
-                image=file_obj,
+                image=res["url"],
+                provider=res["provider"],
+                space=space,
                 caption=f"{rental.title} Photo {existing_count + idx + 1}",
                 order=existing_count + idx,
                 is_primary=(existing_count == 0 and idx == 0),
@@ -359,8 +427,13 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
         try:
             BookingOTPService.send_booking_otp(phone)
             return Response({"message": "OTP sent successfully", "verified": False})
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            # Log the real error for developers; never send internal details to the browser.
+            logger.exception("Booking OTP send failed")
+            return Response(
+                {"error": "Could not send the verification code. Please try again in a moment."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @decorators.action(detail=False, methods=["post"], permission_classes=[permissions.AllowAny], url_path="verify_otp")
     def verify_otp(self, request):
@@ -396,8 +469,13 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
         try:
             BookingOTPService.send_booking_email_otp(clean_email, guest_name=guest_name)
             return Response({"message": "OTP sent to your email successfully", "verified": False})
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            # Log the real error for developers; never send internal details to the browser.
+            logger.exception("Booking OTP send failed")
+            return Response(
+                {"error": "Could not send the verification code. Please try again in a moment."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @decorators.action(detail=False, methods=["post"], permission_classes=[permissions.AllowAny], url_path="verify_email_otp")
     def verify_email_otp(self, request):
@@ -465,28 +543,48 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
 
     @decorators.action(detail=False, methods=["post"], permission_classes=[permissions.IsAuthenticated], url_path="checkin")
     def checkin(self, request):
-        """Marks a vacation rental reservation as checked-in (mirroring hostel check-in action)."""
+        """Marks a CONFIRMED vacation rental reservation as checked-in, only during the stay dates."""
+        from django.db import transaction
+        from Hbackend.booking_policies import check_in_window_error
+
         booking_id = request.data.get("booking_id")
         if not booking_id:
             return Response({"error": "booking_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         booking_id_str = str(booking_id).strip()
-        try:
-            if booking_id_str.upper().startswith("VRB-"):
-                booking = VacationRentalBooking.objects.get(booking_reference=booking_id_str.upper())
-            else:
-                booking = VacationRentalBooking.objects.get(id=booking_id_str)
-        except VacationRentalBooking.DoesNotExist:
-            return Response({"error": "Vacation rental booking not found"}, status=status.HTTP_404_NOT_FOUND)
+        lookup = (
+            {"booking_reference": booking_id_str.upper()}
+            if booking_id_str.upper().startswith("VRB-")
+            else {"id": booking_id_str}
+        )
 
-        if not request.user.is_staff and booking.host != request.user and getattr(booking, "owner", None) != request.user and getattr(booking.rental, "host", None) != request.user:
-            raise PermissionDenied("You do not have permission to check-in this vacation rental booking.")
+        with transaction.atomic():
+            try:
+                booking = VacationRentalBooking.objects.select_for_update().select_related("rental").get(**lookup)
+            except (VacationRentalBooking.DoesNotExist, ValueError, DjangoValidationError):
+                return Response({"error": "Vacation rental booking not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        if booking.status == VacationRentalBooking.BookingStatus.CHECKED_IN:
-            return Response({"error": "Booking already checked in"}, status=status.HTTP_400_BAD_REQUEST)
+            if (
+                not request.user.is_staff
+                and booking.host_id != request.user.id
+                and getattr(booking, "owner_id", None) != request.user.id
+                and getattr(booking.rental, "host_id", None) != request.user.id
+            ):
+                raise PermissionDenied("You do not have permission to check-in this vacation rental booking.")
 
-        booking.status = VacationRentalBooking.BookingStatus.CHECKED_IN
-        booking.save(update_fields=["status"])
+            if booking.status == VacationRentalBooking.BookingStatus.CHECKED_IN:
+                return Response({"error": "Booking already checked in"}, status=status.HTTP_400_BAD_REQUEST)
+            if booking.status != VacationRentalBooking.BookingStatus.CONFIRMED:
+                return Response(
+                    {"error": f"Only confirmed bookings can be checked in. This booking is '{booking.get_status_display()}'."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            window_error = check_in_window_error(booking.check_in_date, booking.check_out_date)
+            if window_error:
+                return Response({"error": window_error}, status=status.HTTP_400_BAD_REQUEST)
+
+            booking.status = VacationRentalBooking.BookingStatus.CHECKED_IN
+            booking.save(update_fields=["status"])
         return Response({"message": "Check-in successful", "booking_id": booking.id})
 
     @decorators.action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated], url_path="approve")
@@ -586,44 +684,75 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
 
     @decorators.action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated], url_path="cancel")
     def cancel(self, request, pk=None):
-        """Cancels a vacation rental reservation and frees the calendar dates."""
-        booking = get_object_or_404(VacationRentalBooking, id=pk)
-        is_guest = booking.user == request.user
-        is_host = booking.host == request.user
+        """Cancels a reservation that has not started yet, frees the calendar and records the policy-based refund."""
+        from django.db import transaction
+        from Hbackend.booking_policies import calculate_refund
 
-        if not is_guest and not is_host and not request.user.is_staff:
-            return Response({"detail": "You do not have permission to cancel this booking."}, status=status.HTTP_403_FORBIDDEN)
+        CANCELLABLE = [
+            VacationRentalBooking.BookingStatus.PENDING_APPROVAL,
+            VacationRentalBooking.BookingStatus.PAYMENT_INITIATED,
+            VacationRentalBooking.BookingStatus.CONFIRMED,
+        ]
 
-        if booking.status == VacationRentalBooking.BookingStatus.CANCELLED:
-            return Response({"detail": "This booking is already cancelled."}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            booking = get_object_or_404(
+                VacationRentalBooking.objects.select_for_update().select_related("rental"), id=pk
+            )
+            user = request.user
+            is_guest = booking.user_id is not None and booking.user_id == user.id
+            is_host = (
+                booking.host_id == user.id
+                or getattr(booking, "owner_id", None) == user.id
+                or getattr(booking.rental, "host_id", None) == user.id
+            )
+            if not is_guest and not is_host and not user.is_staff:
+                return Response({"detail": "You do not have permission to cancel this booking."}, status=status.HTTP_403_FORBIDDEN)
 
-        reason = request.data.get("reason", "Cancelled by user")
+            if booking.status == VacationRentalBooking.BookingStatus.CANCELLED:
+                return Response({"detail": "This booking is already cancelled."}, status=status.HTTP_400_BAD_REQUEST)
+            if booking.status not in CANCELLABLE:
+                return Response(
+                    {"detail": f"A booking that is '{booking.get_status_display()}' can no longer be cancelled."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        booking.status = VacationRentalBooking.BookingStatus.CANCELLED
-        booking.save(update_fields=["status"])
+            reason = request.data.get("reason") or "Cancelled by user"
+            if is_guest:
+                cancelled_by = VacationRentalCancellation.CancelledBy.GUEST
+            elif is_host:
+                cancelled_by = VacationRentalCancellation.CancelledBy.HOST
+            else:
+                cancelled_by = VacationRentalCancellation.CancelledBy.ADMIN
 
-        # Free the calendar dates
-        VacationRentalAvailability.objects.filter(
-            rental=booking.rental,
-            date__gte=booking.check_in_date,
-            date__lt=booking.check_out_date,
-            reason=VacationRentalAvailability.BlockReason.BOOKED,
-        ).delete()
+            pricing = getattr(booking, "pricing_details", None)
+            paid_amount = pricing.total_price if pricing and pricing.payment_status == "paid" else 0
+            policy = booking.rental.cancellation_policy
+            refund_amount = calculate_refund(
+                "rental_moderate" if policy == "moderate" else policy,
+                paid_amount,
+                booking.check_in_date,
+                cancelled_by_property=not is_guest,
+            )
 
-        # Create cancellation record
-        cancelled_by = (
-            VacationRentalCancellation.CancelledBy.GUEST
-            if is_guest
-            else VacationRentalCancellation.CancelledBy.HOST
-        )
-        VacationRentalCancellation.objects.create(
-            booking=booking,
-            cancellation_policy_applied=booking.rental.cancellation_policy,
-            cancelled_by=cancelled_by,
-            reason=reason,
-            refund_amount=booking.total_price,
-            refund_status=VacationRentalCancellation.RefundStatus.PENDING,
-        )
+            booking.status = VacationRentalBooking.BookingStatus.CANCELLED
+            booking.save(update_fields=["status"])
+
+            # Free the calendar dates
+            VacationRentalAvailability.objects.filter(
+                rental=booking.rental,
+                date__gte=booking.check_in_date,
+                date__lt=booking.check_out_date,
+                reason=VacationRentalAvailability.BlockReason.BOOKED,
+            ).delete()
+
+            VacationRentalCancellation.objects.create(
+                booking=booking,
+                cancellation_policy_applied=policy,
+                cancelled_by=cancelled_by,
+                reason=reason,
+                refund_amount=refund_amount,
+                refund_status=VacationRentalCancellation.RefundStatus.PENDING,
+            )
 
         serializer = VacationRentalBookingSerializer(booking, context={"request": request})
         return Response(serializer.data)

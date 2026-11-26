@@ -1,9 +1,10 @@
 import cloudinary.uploader
+from concurrent.futures import ThreadPoolExecutor
 from imagekitio import ImageKit
 from django.conf import settings
 import os
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageOps
 from django.core.files.base import ContentFile
 
 
@@ -15,13 +16,19 @@ class ImageUploadService:
             private_key=settings.IMAGEKIT_PRIVATE_KEY,
         )
 
-    def _convert_to_webp(self, file_obj, quality=80):
-        """Helper to convert any image file to WebP format."""
+    def _convert_to_webp(self, file_obj, quality=80, max_width=1920):
+        """Helper to resize oversized images and convert to WebP in memory (zero local storage)."""
         try:
             if hasattr(file_obj, "seek"):
                 file_obj.seek(0)
 
             img = Image.open(file_obj)
+            img = ImageOps.exif_transpose(img)
+
+            if img.width > max_width:
+                ratio = max_width / float(img.width)
+                new_height = max(1, int(img.height * ratio))
+                img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
 
             # Convert to RGB if needed
             if img.mode in ("RGBA", "LA"):
@@ -30,7 +37,7 @@ class ImageUploadService:
                 img = img.convert("RGB")
 
             buffer = BytesIO()
-            img.save(buffer, format="WEBP", quality=quality)
+            img.save(buffer, format="WEBP", quality=quality, method=4)
             buffer.seek(0)
             return buffer
         except Exception:
@@ -156,3 +163,23 @@ class ImageUploadService:
             "url": url,
             "provider": provider,
         }
+
+    def upload_images_batch(self, items, folder="hostels", max_workers=5):
+        """
+        Concurrently compress (in-memory WebP) and upload multiple (file_obj, file_name) tuples
+        to the active third-party storage provider without touching local disk.
+        """
+        if not items:
+            return []
+
+        def _upload_one(pair):
+            file_obj, file_name = pair
+            if hasattr(file_obj, "seek"):
+                file_obj.seek(0)
+            raw_bytes = file_obj.read()
+            mem_buf = BytesIO(raw_bytes)
+            return self.upload_image(mem_buf, file_name, folder=folder)
+
+        workers = min(max_workers, len(items))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            return list(executor.map(_upload_one, items))

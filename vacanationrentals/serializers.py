@@ -22,9 +22,11 @@ from amenities.models import Amenity
 # ── Nested & Supporting Serializers ──────────────────────────────────────────
 
 class VacationRentalImageSerializer(serializers.ModelSerializer):
+    space_display = serializers.CharField(source="get_space_display", read_only=True)
+
     class Meta:
         model = VacationRentalImage
-        fields = ("id", "image", "caption", "is_primary", "order", "created_at")
+        fields = ("id", "image", "space", "space_display", "caption", "is_primary", "order", "provider", "created_at")
 
 
 class VacationRentalAvailabilitySerializer(serializers.ModelSerializer):
@@ -111,6 +113,10 @@ class VacationRentalSerializer(serializers.ModelSerializer):
     amenities_list = serializers.SerializerMethodField()
     reviews = serializers.SerializerMethodField()
     is_sponsored = serializers.BooleanField(read_only=True, default=False)
+    effective_price_per_night = serializers.SerializerMethodField()
+    effective_weekend_price_per_night = serializers.SerializerMethodField()
+    max_images = serializers.IntegerField(source="get_max_images", read_only=True)
+    max_images_per_space = serializers.IntegerField(source="get_max_images_per_space", read_only=True)
 
     class Meta:
         model = VacationRental
@@ -141,6 +147,10 @@ class VacationRentalSerializer(serializers.ModelSerializer):
             "bathrooms",
             "price_per_night",
             "weekend_price_per_night",
+            "dynamic_price_per_night",
+            "dynamic_weekend_price_per_night",
+            "effective_price_per_night",
+            "effective_weekend_price_per_night",
             "cleaning_fee",
             "security_deposit",
             "weekly_discount_percentage",
@@ -172,6 +182,8 @@ class VacationRentalSerializer(serializers.ModelSerializer):
             "og_image",
             "meta_title",
             "meta_description",
+            "max_images",
+            "max_images_per_space",
             "images",
             "reviews",
             "created_at",
@@ -185,6 +197,18 @@ class VacationRentalSerializer(serializers.ModelSerializer):
         from reviews.serializers import VacationRentalReviewSerializer
         qs = obj.reviews.filter(is_approved=True).select_related("user").order_by("-created_at")
         return VacationRentalReviewSerializer(qs, many=True, context=self.context).data
+
+    def get_effective_price_per_night(self, obj):
+        val = obj.dynamic_price_per_night if obj.dynamic_price_per_night is not None else obj.price_per_night
+        return str(val) if val is not None else "0.00"
+
+    def get_effective_weekend_price_per_night(self, obj):
+        val = (
+            obj.dynamic_weekend_price_per_night
+            if obj.dynamic_weekend_price_per_night is not None
+            else obj.weekend_price_per_night
+        )
+        return str(val) if val is not None else None
 
 
 class VacationRentalWriteSerializer(serializers.ModelSerializer):
@@ -212,6 +236,8 @@ class VacationRentalWriteSerializer(serializers.ModelSerializer):
             "bathrooms",
             "price_per_night",
             "weekend_price_per_night",
+            "dynamic_price_per_night",
+            "dynamic_weekend_price_per_night",
             "cleaning_fee",
             "security_deposit",
             "weekly_discount_percentage",
@@ -550,8 +576,14 @@ class VacationRentalBookingCreateSerializer(serializers.Serializer):
 
         # ── Pricing Engine ───────────────────────────────────────────────────
         nights = (check_out - check_in).days
-        base_rate = Decimal(str(rental.price_per_night))
-        weekend_rate = Decimal(str(rental.weekend_price_per_night)) if rental.weekend_price_per_night else base_rate
+        active_base = rental.dynamic_price_per_night if rental.dynamic_price_per_night is not None else rental.price_per_night
+        active_weekend = (
+            rental.dynamic_weekend_price_per_night
+            if rental.dynamic_weekend_price_per_night is not None
+            else rental.weekend_price_per_night
+        )
+        base_rate = Decimal(str(active_base))
+        weekend_rate = Decimal(str(active_weekend)) if active_weekend else base_rate
 
         # Tally nightly rates day-by-day (accounting for custom rates & weekend surges)
         stay_subtotal = Decimal("0.00")

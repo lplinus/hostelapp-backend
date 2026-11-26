@@ -1,8 +1,15 @@
+from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Notification, VendorNotification, FCMDevice
-from .serializers import NotificationSerializer, VendorNotificationSerializer, FCMDeviceSerializer
+from .models import Notification, VendorNotification, FCMDevice, SupportThread, SupportMessage
+from .serializers import (
+    NotificationSerializer,
+    VendorNotificationSerializer,
+    FCMDeviceSerializer,
+    SupportThreadSerializer,
+    SupportMessageSerializer,
+)
 
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -117,3 +124,75 @@ class FCMDeviceViewSet(viewsets.GenericViewSet):
         ).update(is_active=False)
 
         return Response({'status': 'device deactivated', 'updated_count': updated})
+
+
+# ==============================================================================
+# 1-ON-1 HELP & SUPPORT CHAT VIEWSET (REST + POLLING, NO CHANNELS)
+# ==============================================================================
+
+class SupportThreadViewSet(viewsets.ModelViewSet):
+    """
+    Owner / Staff 1-on-1 support chat threads & messages over standard REST.
+    """
+    serializer_class = SupportThreadSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return SupportThread.objects.all().prefetch_related('messages')
+        return SupportThread.objects.filter(user=user).prefetch_related('messages')
+
+    def create(self, request, *args, **kwargs):
+        subject = request.data.get('subject', SupportThread.Subject.OTHER)
+        initial_message = (request.data.get('message') or '').strip()
+        if not initial_message:
+            return Response({'error': 'message is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        thread = SupportThread.objects.create(
+            user=request.user,
+            subject=subject,
+            last_message_at=timezone.now(),
+        )
+        SupportMessage.objects.create(
+            thread=thread,
+            sender=request.user,
+            is_staff_reply=False,
+            body=initial_message,
+        )
+        serializer = self.get_serializer(thread)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'], url_path='messages')
+    def list_messages(self, request, pk=None):
+        thread = self.get_object()
+        # Mark incoming messages as read
+        if request.user.is_staff and thread.user != request.user:
+            thread.messages.filter(is_staff_reply=False, is_read=False).update(is_read=True)
+        else:
+            thread.messages.filter(is_staff_reply=True, is_read=False).update(is_read=True)
+
+        msgs = thread.messages.select_related('sender').order_by('created_at')
+        return Response(SupportMessageSerializer(msgs, many=True).data)
+
+    @action(detail=True, methods=['post'], url_path='send')
+    def send_message(self, request, pk=None):
+        thread = self.get_object()
+        body = (request.data.get('body') or '').strip()
+        if not body:
+            return Response({'error': 'body is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        is_staff = bool(request.user.is_staff and thread.user != request.user)
+        msg = SupportMessage.objects.create(
+            thread=thread,
+            sender=request.user,
+            is_staff_reply=is_staff,
+            body=body,
+        )
+        thread.last_message_at = timezone.now()
+        if thread.status == SupportThread.Status.CLOSED:
+            thread.status = SupportThread.Status.OPEN
+        thread.save(update_fields=['last_message_at', 'status', 'updated_at'])
+
+        return Response(SupportMessageSerializer(msg).data, status=status.HTTP_201_CREATED)
