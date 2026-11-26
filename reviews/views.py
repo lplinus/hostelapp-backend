@@ -111,7 +111,11 @@ class ReviewViewSet(BaseReviewViewSet):
         hostel_id = self.request.query_params.get("hostel") or self.request.query_params.get("hostel_id")
         if hostel_id:
             queryset = queryset.filter(hostel_id=hostel_id)
-        if not self.request.user.is_staff:
+        if self.request.query_params.get("owner") == "me" and self.request.user.is_authenticated:
+            queryset = queryset.filter(hostel__owner=self.request.user)
+        if self.request.query_params.get("user") == "me" and self.request.user.is_authenticated:
+            queryset = queryset.filter(user=self.request.user)
+        if not self.request.user.is_staff and not (self.request.user.is_authenticated and (self.request.query_params.get("owner") == "me" or self.request.query_params.get("user") == "me")):
             return queryset.filter(is_approved=True).order_by("-created_at")
         return queryset.all().order_by("-created_at")
 
@@ -138,7 +142,11 @@ class HotelReviewViewSet(BaseReviewViewSet):
         hotel_slug = self.request.query_params.get("hotel_slug")
         if hotel_slug:
             queryset = queryset.filter(hotel__slug=hotel_slug)
-        if not self.request.user.is_staff:
+        if self.request.query_params.get("owner") == "me" and self.request.user.is_authenticated:
+            queryset = queryset.filter(hotel__owner=self.request.user)
+        if self.request.query_params.get("user") == "me" and self.request.user.is_authenticated:
+            queryset = queryset.filter(user=self.request.user)
+        if not self.request.user.is_staff and not (self.request.user.is_authenticated and (self.request.query_params.get("owner") == "me" or self.request.query_params.get("user") == "me")):
             return queryset.filter(is_approved=True).order_by("-created_at")
         return queryset.all().order_by("-created_at")
 
@@ -165,6 +173,10 @@ class VacationRentalReviewViewSet(BaseReviewViewSet):
         rental_slug = self.request.query_params.get("rental_slug")
         if rental_slug:
             queryset = queryset.filter(rental__slug=rental_slug)
-        if not self.request.user.is_staff:
+        if self.request.query_params.get("owner") == "me" and self.request.user.is_authenticated:
+            queryset = queryset.filter(rental__host=self.request.user)
+        if self.request.query_params.get("user") == "me" and self.request.user.is_authenticated:
+            queryset = queryset.filter(user=self.request.user)
+        if not self.request.user.is_staff and not (self.request.user.is_authenticated and (self.request.query_params.get("owner") == "me" or self.request.query_params.get("user") == "me")):
             return queryset.filter(is_approved=True).order_by("-created_at")
         return queryset.all().order_by("-created_at")

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Notification, BroadcastNotification
+from .models import Notification, BroadcastNotification, FCMDevice
 
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
@@ -13,3 +13,10 @@ class BroadcastNotificationAdmin(admin.ModelAdmin):
     list_display = ('title', 'created_at', 'is_processed')
     readonly_fields = ('created_at', 'is_processed')
     search_fields = ('title', 'message')
+
+@admin.register(FCMDevice)
+class FCMDeviceAdmin(admin.ModelAdmin):
+    list_display = ('user', 'vendor', 'device_type', 'is_active', 'created_at', 'updated_at')
+    list_filter = ('device_type', 'is_active', 'created_at')
+    search_fields = ('user__email', 'vendor__business_name', 'registration_token')
+    readonly_fields = ('created_at', 'updated_at')

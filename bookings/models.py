@@ -119,7 +119,7 @@ class Booking(SoftDeleteModel):
         if not self.expires_at and self.status in ["pending", "payment_initiated"]:
             from django.utils import timezone
             from datetime import timedelta
-            self.expires_at = timezone.now() + timedelta(minutes=25)
+            self.expires_at = timezone.now() + timedelta(minutes=8)
         super().save(*args, **kwargs)
 
     def __str__(self):

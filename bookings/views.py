@@ -92,6 +92,8 @@ class BookingViewSet(viewsets.ModelViewSet):
 
         # Initial status is always decided by the server, never by the client payload
         save_kwargs["status"] = "pending"
+        # 8-minute booking hold window directly managed by the backend
+        save_kwargs["expires_at"] = timezone.now() + timedelta(minutes=8)
 
         # If it's a visit request, set initial status as confirmed
         if serializer.validated_data.get("booking_type") == "visit":
@@ -560,6 +562,8 @@ class BookingViewSet(viewsets.ModelViewSet):
                 "requested_beds": guests_count,
                 "room_type_id": room_type.id,
                 "room_type_name": f"{room_type.get_room_category_display()} - {room_type.get_sharing_type_display()}",
+                "hold_minutes": 8,
+                "hold_seconds": 480,
                 "message": (
                     f"{available_beds} bed(s) available for the selected dates."
                     if is_available

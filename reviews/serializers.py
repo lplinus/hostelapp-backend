@@ -15,6 +15,9 @@ def _extract_user_display_name(obj):
 
 class ReviewSerializer(serializers.ModelSerializer):
     user_name = serializers.SerializerMethodField()
+    hostel_name = serializers.CharField(source="hostel.name", read_only=True, default="")
+    hostel_slug = serializers.CharField(source="hostel.slug", read_only=True, default="")
+    booking_reference = serializers.CharField(source="booking.booking_reference", read_only=True, default="")
 
     class Meta:
         model = Review
@@ -22,6 +25,9 @@ class ReviewSerializer(serializers.ModelSerializer):
             "id",
             "booking",
             "hostel",
+            "hostel_name",
+            "hostel_slug",
+            "booking_reference",
             "user",
             "name",
             "rating",
@@ -40,6 +46,9 @@ class ReviewSerializer(serializers.ModelSerializer):
 
 class HotelReviewSerializer(serializers.ModelSerializer):
     user_name = serializers.SerializerMethodField()
+    hotel_name = serializers.CharField(source="hotel.name", read_only=True, default="")
+    hotel_slug = serializers.CharField(source="hotel.slug", read_only=True, default="")
+    booking_reference = serializers.CharField(source="booking.booking_reference", read_only=True, default="")
 
     class Meta:
         model = HotelReview
@@ -47,6 +56,9 @@ class HotelReviewSerializer(serializers.ModelSerializer):
             "id",
             "booking",
             "hotel",
+            "hotel_name",
+            "hotel_slug",
+            "booking_reference",
             "user",
             "name",
             "rating",
@@ -66,6 +78,9 @@ class HotelReviewSerializer(serializers.ModelSerializer):
 
 class VacationRentalReviewSerializer(serializers.ModelSerializer):
     user_name = serializers.SerializerMethodField()
+    rental_title = serializers.CharField(source="rental.title", read_only=True, default="")
+    rental_slug = serializers.CharField(source="rental.slug", read_only=True, default="")
+    booking_reference = serializers.CharField(source="booking.booking_reference", read_only=True, default="")
 
     class Meta:
         model = VacationRentalReview
@@ -73,6 +88,9 @@ class VacationRentalReviewSerializer(serializers.ModelSerializer):
             "id",
             "booking",
             "rental",
+            "rental_title",
+            "rental_slug",
+            "booking_reference",
             "user",
             "name",
             "rating",

@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 *.pyd
 
+*.pmtiles
 # Django
 *.log
 db.sqlite3
@@ -26,3 +27,12 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+serviceAccountKey.json
+*.pem
+jwt_keys/
+
+
+# .env (keep out of git)
+JWT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"

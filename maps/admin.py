@@ -1,6 +1,24 @@
 from django.contrib import admin
 from Hbackend.base_models import SoftDeleteAdmin
-from .models import PropertyPinpoint
+from .models import PropertyPinpoint, MapPlace
+
+
+@admin.register(MapPlace)
+class MapPlaceAdmin(admin.ModelAdmin):
+    list_display = [
+        "title",
+        "category",
+        "city",
+        "landmark",
+        "latitude",
+        "longitude",
+        "is_active",
+        "is_featured",
+        "updated_at",
+    ]
+    list_filter = ["category", "is_active", "is_featured", "city"]
+    search_fields = ["title", "description", "landmark", "address", "city"]
+    readonly_fields = ["created_at", "updated_at"]
 
 
 @admin.register(PropertyPinpoint)

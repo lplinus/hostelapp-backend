@@ -1,3 +1,4 @@
+import random
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -5,8 +6,10 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils import timezone
 from django.db.models import F, Sum, Q
 from django.shortcuts import get_object_or_404
+from django.core.cache import cache
 
 from .models import AdCampaign, AdPlan
+from .services import get_active_banner_campaigns
 from .serializers import (
     AdCampaignSerializer,
     AdCampaignCreateSerializer,
@@ -113,6 +116,35 @@ class OwnerCampaignDetailView(APIView):
         return Response({"message": "Campaign archived successfully."}, status=status.HTTP_200_OK)
 
 
+class OwnerCampaignBulkDeleteView(APIView):
+    """
+    POST: Soft-delete / archive multiple ad campaigns owned by the logged-in user.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        ids = request.data.get("ids")
+        if not isinstance(ids, list) or len(ids) == 0:
+            return Response(
+                {"error": "Please provide a non-empty list of campaign ids."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        updated_count = AdCampaign.objects.filter(
+            id__in=ids,
+            owner=request.user,
+            is_deleted=0,
+        ).update(is_deleted=1, updated_at=timezone.now())
+
+        return Response(
+            {
+                "message": f"{updated_count} campaign(s) archived successfully.",
+                "deleted_count": updated_count,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class OwnerPropertiesForAdView(APIView):
     """
     GET: Returns a list of Hotels and Vacation Rentals owned by the logged-in owner
@@ -162,66 +194,44 @@ class OwnerPropertiesForAdView(APIView):
 class PublicActiveSponsoredAdsView(APIView):
     """
     GET: Returns active sponsored ads for search results, top banners, or landing pages.
-    Supports dynamic filtering by property_type (hotel, vacation_rental), placement, location/city, and limit.
-    Enables interchangeability between top banner carousels and sponsored listing cards.
+    - Fixed schedule: start_date and end_date control running window.
+    - Budget stop: max_impressions and max_clicks cap automatic serving.
+    - Cache: caches placement result per city/prop_type for 60 to 120 seconds (90s).
+    - Weighted random: picks properties by weight so different properties appear on page loads.
     """
     permission_classes = [AllowAny]
 
     def get(self, request):
-        now = timezone.now()
-        queryset = AdCampaign.objects.filter(
-            is_deleted=0,
-            status=AdCampaign.CampaignStatus.ACTIVE,
-            start_date__lte=now,
-            end_date__gte=now,
-        ).select_related("hotel", "vacation_rental", "hotel__city", "vacation_rental__city", "hostel")
-
-        # 1. Filter by property type (hotel, vacation_rental, hostel)
-        prop_type = request.query_params.get("property_type")
-        if prop_type and prop_type.lower() != "all":
-            queryset = queryset.filter(property_type=prop_type.lower())
-
-        # 2. Filter by placement if specified (or all if omitted/all)
-        placement = request.query_params.get("placement")
-        if placement and placement.lower() != "all":
-            queryset = queryset.filter(placement=placement)
-
-        # 3. Location / City filtering (Crucial for location-based dynamic ads)
-        city = request.query_params.get("city") or request.query_params.get("location") or request.query_params.get("search")
+        prop_type = (request.query_params.get("property_type") or "all").lower().strip()
+        placement = (request.query_params.get("placement") or "all").lower().strip()
+        city = (request.query_params.get("city") or request.query_params.get("location") or request.query_params.get("search") or "").strip()
         city_id = request.query_params.get("city_id")
         city_slug = request.query_params.get("city_slug")
-
-        if city_id:
-            queryset = queryset.filter(
-                Q(hotel__city_id=city_id) | Q(vacation_rental__city_id=city_id)
-            )
-        elif city_slug:
-            queryset = queryset.filter(
-                Q(hotel__city__slug=city_slug) | Q(vacation_rental__city__slug=city_slug)
-            )
-        elif city and city.strip():
-            c = city.strip()
-            queryset = queryset.filter(
-                Q(hotel__city__name__icontains=c)
-                | Q(vacation_rental__city__name__icontains=c)
-                | Q(hotel__address__icontains=c)
-                | Q(vacation_rental__address__icontains=c)
-                | Q(hotel__area__name__icontains=c)
-                | Q(vacation_rental__area__name__icontains=c)
-            )
+        search_id = request.query_params.get("search_id") or request.query_params.get("banner_seed")
 
         try:
-            limit = min(int(request.query_params.get("limit", 16)), 30)
+            limit = min(int(request.query_params.get("limit", 4)), 4)
         except (ValueError, TypeError):
-            limit = 16
+            limit = 4
 
-        serializer = AdCampaignSerializer(queryset[:limit], many=True, context={"request": request})
+        campaigns = get_active_banner_campaigns(
+            property_type=prop_type,
+            city=city,
+            city_slug=city_slug,
+            city_id=city_id,
+            placement=placement,
+            limit=limit,
+            search_id=search_id,
+        )
+
+        serializer = AdCampaignSerializer(campaigns, many=True, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class TrackAdImpressionView(APIView):
     """
     POST: Real-time atomic increment of ad impression count.
+    Automatically completes promotion if max_impressions budget cap is reached.
     """
     permission_classes = [AllowAny]
 
@@ -233,12 +243,20 @@ class TrackAdImpressionView(APIView):
         updated = AdCampaign.objects.filter(id=campaign_id, is_deleted=0).update(
             impressions_count=F("impressions_count") + 1
         )
+
+        # Check budget stop
+        campaign = AdCampaign.objects.filter(id=campaign_id, is_deleted=0).first()
+        if campaign and campaign.max_impressions > 0 and campaign.impressions_count >= campaign.max_impressions:
+            campaign.status = AdCampaign.CampaignStatus.COMPLETED
+            campaign.save(update_fields=["status", "updated_at"])
+
         return Response({"success": bool(updated)}, status=status.HTTP_200_OK)
 
 
 class TrackAdClickView(APIView):
     """
     POST: Real-time atomic increment of ad click count.
+    Automatically completes promotion if max_clicks budget cap is reached.
     """
     permission_classes = [AllowAny]
 
@@ -250,6 +268,13 @@ class TrackAdClickView(APIView):
         updated = AdCampaign.objects.filter(id=campaign_id, is_deleted=0).update(
             clicks_count=F("clicks_count") + 1
         )
+
+        # Check budget stop
+        campaign = AdCampaign.objects.filter(id=campaign_id, is_deleted=0).first()
+        if campaign and campaign.max_clicks > 0 and campaign.clicks_count >= campaign.max_clicks:
+            campaign.status = AdCampaign.CampaignStatus.COMPLETED
+            campaign.save(update_fields=["status", "updated_at"])
+
         return Response({"success": bool(updated)}, status=status.HTTP_200_OK)
 
 

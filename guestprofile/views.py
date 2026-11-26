@@ -309,9 +309,13 @@ class GuestDocumentDetailView(APIView):
 class GuestBookingsListView(APIView):
     """
     Consolidated bookings feed for the authenticated guest across:
-    - Hostel Bookings
+    - Hostel Bookings (legacy / platform exclusively supports Hotels and Vacation Rentals)
     - Hotel Bookings
     - Vacation Rental Bookings
+    Supports server-side filtering:
+    - status: 'all', 'upcoming', 'active', 'completed', 'cancelled'
+    - property_type / booking_type: 'all', 'hotel', 'vacation_rental'
+    - search: booking_reference, hotel name, rental title, etc.
     """
     permission_classes = [IsAuthenticated]
 
@@ -320,127 +324,206 @@ class GuestBookingsListView(APIView):
         email = user.email or ""
         phone = getattr(user, "phone", "") or ""
 
+        status_param = (request.query_params.get("status") or "").strip().lower()
+        property_type = (
+            request.query_params.get("property_type")
+            or request.query_params.get("booking_type")
+            or ""
+        ).strip().lower()
+        search_query = (request.query_params.get("search") or "").strip()
+
+        # 1. Base user ownership filters
+        hotel_user_filter = Q(user=user)
+        if email:
+            hotel_user_filter |= Q(guest_details__guest_email__iexact=email)
+        if phone:
+            hotel_user_filter |= Q(guest_details__mobile_number=phone)
+
+        vr_user_filter = Q(user=user)
+        if email:
+            vr_user_filter |= Q(guest_details__guest_email__iexact=email)
+        if phone:
+            vr_user_filter |= Q(guest_details__mobile_number=phone)
+
+        # Base querysets
+        base_hotel_qs = HotelBooking.objects.filter(hotel_user_filter)
+        base_vr_qs = VacationRentalBooking.objects.filter(vr_user_filter)
+
+        # 2. Compute live aggregate counts across all bookings for the guest
+        total_hotel_count = base_hotel_qs.count()
+        total_vr_count = base_vr_qs.count()
+        total_all_count = total_hotel_count + total_vr_count
+
+        upcoming_hotel_count = base_hotel_qs.filter(
+            status__in=[
+                HotelBooking.BookingStatus.CONFIRMED,
+                HotelBooking.BookingStatus.PENDING,
+                HotelBooking.BookingStatus.PAYMENT_INITIATED,
+            ]
+        ).count()
+        upcoming_vr_count = base_vr_qs.filter(
+            status__in=[
+                VacationRentalBooking.BookingStatus.CONFIRMED,
+                VacationRentalBooking.BookingStatus.PENDING_APPROVAL,
+                VacationRentalBooking.BookingStatus.PAYMENT_INITIATED,
+            ]
+        ).count()
+
+        active_hotel_count = base_hotel_qs.filter(
+            status=HotelBooking.BookingStatus.CHECKED_IN
+        ).count()
+        active_vr_count = base_vr_qs.filter(
+            status=VacationRentalBooking.BookingStatus.CHECKED_IN
+        ).count()
+
+        completed_hotel_count = base_hotel_qs.filter(
+            status=HotelBooking.BookingStatus.CHECKED_OUT
+        ).count()
+        completed_vr_count = base_vr_qs.filter(
+            status=VacationRentalBooking.BookingStatus.COMPLETED
+        ).count()
+
+        cancelled_hotel_count = base_hotel_qs.filter(
+            status=HotelBooking.BookingStatus.CANCELLED
+        ).count()
+        cancelled_vr_count = base_vr_qs.filter(
+            status__in=[
+                VacationRentalBooking.BookingStatus.CANCELLED,
+                VacationRentalBooking.BookingStatus.DECLINED,
+            ]
+        ).count()
+
+        counts = {
+            "all": total_all_count,
+            "hotel": total_hotel_count,
+            "vacation_rental": total_vr_count,
+            "hostel": 0,
+            "upcoming": upcoming_hotel_count + upcoming_vr_count,
+            "active": active_hotel_count + active_vr_count,
+            "completed": completed_hotel_count + completed_vr_count,
+            "cancelled": cancelled_hotel_count + cancelled_vr_count,
+        }
+
+        # 3. Filtered results based on request query parameters
         results = []
 
-        # 1. Hostel Bookings
-        hostel_filter = Q(user=user)
-        if email:
-            hostel_filter |= Q(guest_email__iexact=email)
-        if phone:
-            hostel_filter |= Q(mobile_number=phone)
+        # Hotel Bookings
+        if property_type in ("", "all", "hotel"):
+            hotel_qs = base_hotel_qs
+            if status_param == "upcoming":
+                hotel_qs = hotel_qs.filter(
+                    status__in=[
+                        HotelBooking.BookingStatus.CONFIRMED,
+                        HotelBooking.BookingStatus.PENDING,
+                        HotelBooking.BookingStatus.PAYMENT_INITIATED,
+                    ]
+                )
+            elif status_param == "active":
+                hotel_qs = hotel_qs.filter(status=HotelBooking.BookingStatus.CHECKED_IN)
+            elif status_param == "completed":
+                hotel_qs = hotel_qs.filter(status=HotelBooking.BookingStatus.CHECKED_OUT)
+            elif status_param == "cancelled":
+                hotel_qs = hotel_qs.filter(status=HotelBooking.BookingStatus.CANCELLED)
 
-        hostel_bookings = (
-            Booking.objects.filter(hostel_filter)
-            .select_related("hostel", "room_type", "review")
-            .order_by("-created_at")[:50]
-        )
+            if search_query:
+                hotel_qs = hotel_qs.filter(
+                    Q(booking_reference__icontains=search_query)
+                    | Q(hotel__name__icontains=search_query)
+                    | Q(hotel__city__icontains=search_query)
+                    | Q(room_type__name__icontains=search_query)
+                )
 
-        for b in hostel_bookings:
-            has_rev = hasattr(b, "review") and b.review is not None
-            if b.room_type:
-                if hasattr(b.room_type, "get_sharing_type_display") and hasattr(b.room_type, "get_room_category_display"):
-                    room_title = f"{b.room_type.get_room_category_display()} ({b.room_type.get_sharing_type_display()})"
-                elif hasattr(b.room_type, "name"):
-                    room_title = b.room_type.name
-                else:
-                    room_title = str(b.room_type)
-            else:
-                room_title = "Standard Room"
+            hotel_bookings = (
+                hotel_qs.select_related("hotel", "room_type", "review")
+                .order_by("-created_at")[:100]
+            )
 
-            results.append({
-                "id": str(b.id),
-                "booking_type": "hostel",
-                "booking_reference": getattr(b, "booking_reference", str(b.id)[:8].upper()),
-                "property_id": b.hostel_id,
-                "property_slug": b.hostel.slug if b.hostel else None,
-                "property_name": b.hostel.name if b.hostel else "Hostel Stay",
-                "room_title": room_title,
-                "check_in": b.check_in.isoformat() if b.check_in else None,
-                "check_out": b.check_out.isoformat() if b.check_out else None,
-                "status": b.status,
-                "total_price": str(b.total_price),
-                "guests_count": b.guests_count,
-                "payment_status": b.payment_status,
-                "has_reviewed": has_rev,
-                "review_rating": b.review.rating if has_rev else None,
-                "review_comment": b.review.comment if has_rev else None,
-                "created_at": b.created_at.isoformat() if hasattr(b, "created_at") and b.created_at else None,
-            })
+            for b in hotel_bookings:
+                has_rev = hasattr(b, "review") and b.review is not None
+                results.append({
+                    "id": str(b.id),
+                    "booking_type": "hotel",
+                    "booking_reference": b.booking_reference,
+                    "property_id": str(b.hotel_id) if b.hotel_id else None,
+                    "property_slug": b.hotel.slug if b.hotel else None,
+                    "property_name": b.hotel.name if b.hotel else "Hotel Stay",
+                    "room_title": getattr(b.room_type, "name", "Hotel Suite") if b.room_type else "Hotel Suite",
+                    "check_in": b.check_in_date.isoformat() if b.check_in_date else None,
+                    "check_out": b.check_out_date.isoformat() if b.check_out_date else None,
+                    "status": b.status,
+                    "total_price": str(b.total_amount),
+                    "guests_count": b.number_of_rooms,
+                    "payment_status": "confirmed",
+                    "has_reviewed": has_rev,
+                    "review_rating": b.review.rating if has_rev else None,
+                    "review_comment": b.review.comment if has_rev else None,
+                    "created_at": b.created_at.isoformat() if b.created_at else None,
+                })
 
-        # 2. Hotel Bookings
-        hotel_filter = Q(user=user)
-        if email:
-            hotel_filter |= Q(guest_details__guest_email__iexact=email)
-        if phone:
-            hotel_filter |= Q(guest_details__mobile_number=phone)
+        # Vacation Rental Bookings
+        if property_type in ("", "all", "vacation_rental"):
+            vr_qs = base_vr_qs
+            if status_param == "upcoming":
+                vr_qs = vr_qs.filter(
+                    status__in=[
+                        VacationRentalBooking.BookingStatus.CONFIRMED,
+                        VacationRentalBooking.BookingStatus.PENDING_APPROVAL,
+                        VacationRentalBooking.BookingStatus.PAYMENT_INITIATED,
+                    ]
+                )
+            elif status_param == "active":
+                vr_qs = vr_qs.filter(status=VacationRentalBooking.BookingStatus.CHECKED_IN)
+            elif status_param == "completed":
+                vr_qs = vr_qs.filter(status=VacationRentalBooking.BookingStatus.COMPLETED)
+            elif status_param == "cancelled":
+                vr_qs = vr_qs.filter(
+                    status__in=[
+                        VacationRentalBooking.BookingStatus.CANCELLED,
+                        VacationRentalBooking.BookingStatus.DECLINED,
+                    ]
+                )
 
-        hotel_bookings = (
-            HotelBooking.objects.filter(hotel_filter)
-            .select_related("hotel", "room_type", "review")
-            .order_by("-created_at")[:50]
-        )
+            if search_query:
+                vr_qs = vr_qs.filter(
+                    Q(booking_reference__icontains=search_query)
+                    | Q(rental__title__icontains=search_query)
+                    | Q(rental__city__icontains=search_query)
+                )
 
-        for b in hotel_bookings:
-            has_rev = hasattr(b, "review") and b.review is not None
-            results.append({
-                "id": str(b.id),
-                "booking_type": "hotel",
-                "booking_reference": b.booking_reference,
-                "property_id": str(b.hotel_id) if b.hotel_id else None,
-                "property_slug": b.hotel.slug if b.hotel else None,
-                "property_name": b.hotel.name if b.hotel else "Hotel Stay",
-                "room_title": getattr(b.room_type, "name", "Hotel Suite") if b.room_type else "Hotel Suite",
-                "check_in": b.check_in_date.isoformat() if b.check_in_date else None,
-                "check_out": b.check_out_date.isoformat() if b.check_out_date else None,
-                "status": b.status,
-                "total_price": str(b.total_amount),
-                "guests_count": b.number_of_rooms,
-                "payment_status": "confirmed",
-                "has_reviewed": has_rev,
-                "review_rating": b.review.rating if has_rev else None,
-                "review_comment": b.review.comment if has_rev else None,
-                "created_at": b.created_at.isoformat() if b.created_at else None,
-            })
+            vr_bookings = (
+                vr_qs.select_related("rental", "review")
+                .order_by("-created_at")[:100]
+            )
 
-        # 3. Vacation Rental Bookings
-        vr_filter = Q(user=user)
-        if email:
-            vr_filter |= Q(guest_details__guest_email__iexact=email)
-        if phone:
-            vr_filter |= Q(guest_details__mobile_number=phone)
-
-        vr_bookings = (
-            VacationRentalBooking.objects.filter(vr_filter)
-            .select_related("rental", "review")
-            .order_by("-created_at")[:50]
-        )
-
-        for b in vr_bookings:
-            has_rev = hasattr(b, "review") and b.review is not None
-            results.append({
-                "id": str(b.id),
-                "booking_type": "vacation_rental",
-                "booking_reference": b.booking_reference,
-                "property_id": str(b.rental_id) if b.rental_id else None,
-                "property_slug": b.rental.slug if b.rental else None,
-                "property_name": b.rental.title if b.rental else "Vacation Home",
-                "room_title": "Entire Place",
-                "check_in": b.check_in_date.isoformat() if b.check_in_date else None,
-                "check_out": b.check_out_date.isoformat() if b.check_out_date else None,
-                "status": b.status,
-                "total_price": str(b.total_price),
-                "guests_count": 1,
-                "payment_status": "confirmed",
-                "has_reviewed": has_rev,
-                "review_rating": b.review.rating if has_rev else None,
-                "review_comment": b.review.comment if has_rev else None,
-                "created_at": b.created_at.isoformat() if b.created_at else None,
-            })
+            for b in vr_bookings:
+                has_rev = hasattr(b, "review") and b.review is not None
+                results.append({
+                    "id": str(b.id),
+                    "booking_type": "vacation_rental",
+                    "booking_reference": b.booking_reference,
+                    "property_id": str(b.rental_id) if b.rental_id else None,
+                    "property_slug": b.rental.slug if b.rental else None,
+                    "property_name": b.rental.title if b.rental else "Vacation Home",
+                    "room_title": "Entire Place",
+                    "check_in": b.check_in_date.isoformat() if b.check_in_date else None,
+                    "check_out": b.check_out_date.isoformat() if b.check_out_date else None,
+                    "status": b.status,
+                    "total_price": str(b.total_price),
+                    "guests_count": 1,
+                    "payment_status": "confirmed",
+                    "has_reviewed": has_rev,
+                    "review_rating": b.review.rating if has_rev else None,
+                    "review_comment": b.review.comment if has_rev else None,
+                    "created_at": b.created_at.isoformat() if b.created_at else None,
+                })
 
         # Sort combined results descending by created_at or check_in
         results.sort(key=lambda x: x.get("created_at") or "", reverse=True)
 
-        return Response(results, status=status.HTTP_200_OK)
+        return Response({
+            "results": results,
+            "counts": counts,
+        }, status=status.HTTP_200_OK)
 
 
 class StaffVerifyGuestDocView(APIView):

@@ -35,6 +35,7 @@ class HotelRoomTypeSerializer(serializers.ModelSerializer):
             "id",
             "hotel",
             "name",
+            "room_number",
             "room_category",
             "category_display",
             "bed_type",
@@ -126,6 +127,7 @@ class HotelSerializer(serializers.ModelSerializer):
     room_types = HotelRoomTypeSerializer(many=True, read_only=True)
     amenities_list = serializers.SerializerMethodField()
     reviews = serializers.SerializerMethodField()
+    is_sponsored = serializers.BooleanField(read_only=True, default=False)
 
     class Meta:
         model = Hotel
@@ -159,6 +161,7 @@ class HotelSerializer(serializers.ModelSerializer):
             "is_featured",
             "is_toprated",
             "is_verified",
+            "is_sponsored",
             "is_active",
             "og_image",
             "meta_title",
@@ -234,15 +237,8 @@ class HotelBookingSerializer(serializers.ModelSerializer):
 
     def get_guest_id_document(self, obj):
         import os
+        # Only the account that actually made the booking can share an ID document.
         user = obj.user
-        if not user and hasattr(obj, "guest_details") and obj.guest_details:
-            from accounts.models import User
-            email = getattr(obj.guest_details, "guest_email", None)
-            phone = getattr(obj.guest_details, "mobile_number", None)
-            if email:
-                user = User.objects.filter(email__iexact=email).first()
-            if not user and phone:
-                user = User.objects.filter(phone=phone).first()
 
         if not user:
             return None
@@ -302,6 +298,36 @@ class HotelBookingSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "booking_reference", "number_of_nights", "created_at", "updated_at")
 
 
+def _verify_razorpay_payment(payment_id, expected_total):
+    """
+    Confirms with Razorpay (server-side) that the payment exists, is for the exact
+    booking amount in INR, is captured, and has not already been used for another booking.
+    Raises ValidationError otherwise, which rolls back the booking.
+    """
+    from payments.razorpayservice import client as razorpay_client
+
+    if HotelPayment.objects.filter(transaction_id=payment_id).exists():
+        raise serializers.ValidationError({"payment": "This payment has already been used for another booking."})
+
+    try:
+        payment = razorpay_client.payment.fetch(payment_id)
+    except Exception:
+        raise serializers.ValidationError({"payment": "Could not verify the online payment. Please contact support."})
+
+    expected_paise = int((Decimal(str(expected_total)) * 100).quantize(Decimal("1")))
+    if payment.get("currency") != "INR" or int(payment.get("amount", 0)) != expected_paise:
+        raise serializers.ValidationError({"payment": "Paid amount does not match the booking total."})
+
+    if payment.get("status") == "authorized":
+        try:
+            payment = razorpay_client.payment.capture(payment_id, expected_paise, {"currency": "INR"})
+        except Exception:
+            raise serializers.ValidationError({"payment": "Payment could not be captured. Please contact support."})
+
+    if payment.get("status") != "captured":
+        raise serializers.ValidationError({"payment": "Payment is not completed."})
+
+
 class HotelBookingCreateSerializer(serializers.Serializer):
     """Write serializer validating booking input and atomically creating modular models."""
     hotel_id = serializers.UUIDField()
@@ -318,6 +344,7 @@ class HotelBookingCreateSerializer(serializers.Serializer):
     children_count = serializers.IntegerField(default=0, min_value=0)
     special_requests = serializers.CharField(required=False, allow_blank=True, default="")
     otp = serializers.CharField(required=False, allow_blank=True, max_length=10, default="")
+    razorpay_payment_id = serializers.CharField(required=False, allow_blank=True, max_length=100, default="")
 
     # Payment
     payment_method = serializers.ChoiceField(
@@ -441,32 +468,23 @@ class HotelBookingCreateSerializer(serializers.Serializer):
             else:
                 raise serializers.ValidationError({"otp": "Invalid or expired OTP verification code."})
 
-        # Criterion C: Verified in preceding step via BookingOTP
+        # Criterion C: Verified in the preceding step (send/verify OTP endpoints).
+        # The verified OTP must belong to the email or phone on THIS booking, be recent,
+        # and is consumed when the booking is created so it can't be reused.
         if not is_verified:
-            recent_cutoff = timezone.now() - timedelta(minutes=30)
-            has_recent_otp = BookingOTP.objects.filter(
-                is_used=True,
-                created_at__gte=recent_cutoff,
-            ).filter(
-                Q(email__iexact=guest_email) | Q(phone=mobile_number)
-            ).exists()
-            if has_recent_otp:
+            recent_cutoff = timezone.now() - timedelta(minutes=15)
+            contact_filter = Q(email__iexact=guest_email) if guest_email else Q(pk__in=[])
+            if mobile_number:
+                contact_filter |= Q(phone=mobile_number)
+            verified_otp = (
+                BookingOTP.objects.filter(is_used=True, created_at__gte=recent_cutoff)
+                .filter(contact_filter)
+                .order_by("-created_at")
+                .first()
+            )
+            if verified_otp:
                 is_verified = True
-
-        # Criterion D: Smart verification skip (prior confirmed hotel or hostel reservation)
-        if not is_verified:
-            has_prior_hotel = HotelBooking.objects.filter(
-                Q(guest_details__mobile_number=mobile_number) | Q(guest_details__guest_email__iexact=guest_email),
-                status__in=[HotelBooking.BookingStatus.CONFIRMED, HotelBooking.BookingStatus.CHECKED_IN, HotelBooking.BookingStatus.CHECKED_OUT],
-            ).exists()
-
-            has_prior_hostel = Booking.objects.filter(
-                Q(mobile_number=mobile_number) | Q(guest_email__iexact=guest_email),
-                status__in=["confirmed", "completed"],
-            ).exists()
-
-            if has_prior_hotel or has_prior_hostel:
-                is_verified = True
+                self._verified_otp_id = verified_otp.id
 
         if not is_verified:
             raise serializers.ValidationError(
@@ -485,15 +503,15 @@ class HotelBookingCreateSerializer(serializers.Serializer):
         check_out = validated_data["check_out_date"]
         num_rooms = validated_data.get("number_of_rooms", 1)
         request = self.context.get("request")
+        # Only link the booking to the logged-in account. Never attach it to another
+        # account just because the email/phone matches (that would leak bookings).
         user = request.user if request and request.user.is_authenticated else None
-        if not user:
-            guest_email = validated_data.get("guest_email")
-            mobile_number = validated_data.get("mobile_number")
-            from accounts.models import User
-            if guest_email:
-                user = User.objects.filter(email__iexact=guest_email).first()
-            if not user and mobile_number:
-                user = User.objects.filter(phone=mobile_number).first()
+
+        # Consume the OTP that verified this booking so it cannot be reused.
+        verified_otp_id = getattr(self, "_verified_otp_id", None)
+        if verified_otp_id:
+            from bookings.models import BookingOTP
+            BookingOTP.objects.filter(id=verified_otp_id).delete()
 
         # Re-verify availability after locking (prevents race condition between
         # two simultaneous requests that both passed the serializer validate())
@@ -527,6 +545,25 @@ class HotelBookingCreateSerializer(serializers.Serializer):
         tax_amount = (base_amount * tax_pct) / Decimal("100")
         total_amount = base_amount + tax_amount
 
+        # Payment check: "online" bookings are confirmed ONLY after the Razorpay payment
+        # is verified server-side (correct amount, captured, not reused). Pay-at-hotel /
+        # on-arrival bookings are confirmed directly and paid at check-in.
+        payment_method = validated_data.get("payment_method", HotelPayment.PaymentMethod.ONLINE)
+        razorpay_payment_id = (validated_data.get("razorpay_payment_id") or "").strip()
+        payment_status = HotelPayment.PaymentStatus.PENDING
+        transaction_id = None
+        if payment_method == HotelPayment.PaymentMethod.ONLINE:
+            if razorpay_payment_id:
+                _verify_razorpay_payment(razorpay_payment_id, total_amount)
+                booking_status = HotelBooking.BookingStatus.CONFIRMED
+                payment_status = HotelPayment.PaymentStatus.PAID
+                transaction_id = razorpay_payment_id
+            else:
+                # Unpaid: stays PENDING and is released by the expiry cleanup task.
+                booking_status = HotelBooking.BookingStatus.PENDING
+        else:
+            booking_status = HotelBooking.BookingStatus.CONFIRMED
+
         # 1. Create Core Booking
         owner = getattr(hotel, "owner", None)
         booking = HotelBooking.objects.create(
@@ -539,7 +576,7 @@ class HotelBookingCreateSerializer(serializers.Serializer):
             number_of_nights=nights,
             number_of_rooms=num_rooms,
             total_amount=total_amount,
-            status=HotelBooking.BookingStatus.CONFIRMED,
+            status=booking_status,
         )
 
         # 2. Create Modular Guest Record
@@ -560,8 +597,10 @@ class HotelBookingCreateSerializer(serializers.Serializer):
             base_amount=base_amount,
             tax_amount=tax_amount,
             total_amount=total_amount,
-            payment_method=validated_data.get("payment_method", HotelPayment.PaymentMethod.ONLINE),
-            payment_status=HotelPayment.PaymentStatus.PENDING,
+            payment_method=payment_method,
+            payment_status=payment_status,
+            transaction_id=transaction_id,
+            paid_at=timezone.now() if payment_status == HotelPayment.PaymentStatus.PAID else None,
         )
 
         # 4. Decrement available room inventory

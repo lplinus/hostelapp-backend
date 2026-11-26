@@ -1,12 +1,15 @@
+from Hbackend.throttles import BookingOTPThrottle
 from datetime import timedelta
 from django.shortcuts import get_object_or_404
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef
 from rest_framework import viewsets, permissions, decorators, status, filters
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 
+from adsense.models import AdCampaign
+from adsense.services import get_active_banner_property_ids
 from .models import (
     VacationRental,
     VacationRentalImage,
@@ -52,15 +55,46 @@ class VacationRentalViewSet(viewsets.ModelViewSet):
     filterset_class = VacationRentalFilter
     search_fields = ["title", "city__name", "area__name", "address", "tagline"]
     ordering_fields = ["price_per_night", "rating_avg", "created_at"]
+    ordering = ["-is_featured", "-rating_avg"]
 
     def get_queryset(self):
+        now = timezone.now()
+        active_sponsored = AdCampaign.objects.filter(
+            vacation_rental=OuterRef("pk"),
+            status=AdCampaign.CampaignStatus.ACTIVE,
+            is_deleted=0,
+            start_date__lte=now,
+            end_date__gte=now,
+        )
         qs = (
             VacationRental.objects.select_related("city", "area", "host")
             .prefetch_related("amenities", "images")
+            .annotate(is_sponsored=Exists(active_sponsored))
             .all()
         )
         if self.action in ["list", "retrieve"]:
-            return qs.filter(is_active=True, is_approved=True)
+            qs = qs.filter(is_active=True, is_approved=True)
+            # Mutual Exclusion: Exclude properties currently featured in the active Ad Banner
+            if self.action == "list":
+                city = (
+                    self.request.query_params.get("city")
+                    or self.request.query_params.get("search")
+                    or self.request.query_params.get("q")
+                    or ""
+                ).strip()
+                city_id = self.request.query_params.get("city_id")
+                city_slug = self.request.query_params.get("city_slug")
+                search_id = self.request.query_params.get("search_id") or self.request.query_params.get("banner_seed")
+                banner_vr_ids = get_active_banner_property_ids(
+                    property_type="vacation_rental",
+                    city=city,
+                    city_slug=city_slug,
+                    city_id=city_id,
+                    search_id=search_id,
+                )
+                if banner_vr_ids:
+                    qs = qs.exclude(id__in=banner_vr_ids)
+            return qs
         return qs
 
     def get_object(self):
@@ -314,20 +348,12 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
 
     # ── OTP Verification Actions (mirroring working hostel pipeline) ───────────────
 
-    @decorators.action(detail=False, methods=["post"], permission_classes=[permissions.AllowAny], url_path="send_otp")
+    @decorators.action(detail=False, methods=["post"], permission_classes=[permissions.AllowAny], url_path="send_otp", throttle_classes=[BookingOTPThrottle])
     def send_otp(self, request):
         """Sends an OTP to the phone number for vacation rental booking verification."""
         phone = request.data.get("phone") or request.data.get("mobile_number")
         if not phone:
             return Response({"error": "phone is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        from bookings.models import Booking
-        has_prior_booking = (
-            VacationRentalBooking.objects.filter(guest_details__mobile_number=phone, status__in=["confirmed", "checked_in", "completed"]).exists()
-            or Booking.objects.filter(mobile_number=phone, status__in=["confirmed", "completed"]).exists()
-        )
-        if has_prior_booking:
-            return Response({"message": "Phone number already verified via previous booking", "verified": True})
 
         from bookings.services.booking_otp_service import BookingOTPService
         try:
@@ -349,7 +375,7 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
             return Response({"message": "Phone verified successfully", "verified": True})
         return Response({"error": "Invalid or expired OTP"}, status=status.HTTP_400_BAD_REQUEST)
 
-    @decorators.action(detail=False, methods=["post"], permission_classes=[permissions.AllowAny], url_path="send_email_otp")
+    @decorators.action(detail=False, methods=["post"], permission_classes=[permissions.AllowAny], url_path="send_email_otp", throttle_classes=[BookingOTPThrottle])
     def send_email_otp(self, request):
         """Sends an OTP to the email address for vacation rental booking verification."""
         email = request.data.get("email") or request.data.get("guest_email")
@@ -396,21 +422,39 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
     @decorators.action(detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated], url_path="my-bookings")
     def my_bookings(self, request):
         """Returns vacation rental bookings for the current user or their hosted properties."""
+        from django.db.models import Q
         qs = self.get_queryset()
         status_param = request.query_params.get("status")
         if status_param and status_param != "all":
             qs = qs.filter(status=status_param)
+        search_param = request.query_params.get("search")
+        if search_param:
+            search_param = search_param.strip()
+            qs = qs.filter(
+                Q(booking_reference__icontains=search_param)
+                | Q(rental__title__icontains=search_param)
+                | Q(guest_details__guest_name__icontains=search_param)
+            )
         serializer = VacationRentalBookingSerializer(qs, many=True, context={"request": request})
         return Response(serializer.data)
 
     @decorators.action(detail=False, methods=["get"], permission_classes=[permissions.IsAuthenticated], url_path="hosted-bookings")
     def hosted_bookings(self, request):
         """Returns reservation requests received by the host for their properties."""
+        from django.db.models import Q
         user = request.user
         qs = self.get_queryset().filter(Q(host=user) | Q(owner=user) | Q(rental__host=user))
         status_param = request.query_params.get("status")
         if status_param and status_param != "all":
             qs = qs.filter(status=status_param)
+        search_param = request.query_params.get("search")
+        if search_param:
+            search_param = search_param.strip()
+            qs = qs.filter(
+                Q(booking_reference__icontains=search_param)
+                | Q(rental__title__icontains=search_param)
+                | Q(guest_details__guest_name__icontains=search_param)
+            )
         serializer = VacationRentalBookingSerializer(qs, many=True, context={"request": request})
         return Response(serializer.data)
 
@@ -482,13 +526,17 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
         serializer = VacationRentalBookingSerializer(booking, context={"request": request})
         return Response(serializer.data)
 
-    @decorators.action(detail=True, methods=["post"], permission_classes=[permissions.AllowAny], url_path="initiate-payment")
+    @decorators.action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated], url_path="initiate-payment")
     def initiate_payment(self, request, pk=None):
         """
         Transition a pending vacation rental booking to 'payment_initiated' and extend expiry by +20 minutes
         (capped at 45 minutes total from creation).
         """
         booking = get_object_or_404(VacationRentalBooking, id=pk)
+
+        # Only the guest who made the booking (or staff) can move it into payment.
+        if not request.user.is_staff and booking.user_id != request.user.id:
+            return Response({"detail": "You do not own this booking."}, status=status.HTTP_403_FORBIDDEN)
 
         if booking.status not in [
             VacationRentalBooking.BookingStatus.PENDING_APPROVAL,
@@ -713,6 +761,8 @@ class VacationRentalBookingViewSet(viewsets.ModelViewSet):
                 "available": True,
                 "rental_id": str(rental.id),
                 "rental_title": rental.title,
+                "hold_minutes": 8,
+                "hold_seconds": 480,
                 "message": f"'{rental.title}' is available from {check_in} to {check_out}!",
             },
             status=status.HTTP_200_OK,

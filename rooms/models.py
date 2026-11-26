@@ -91,15 +91,21 @@ class Bed(SoftDeleteModel):
     def is_available_for_dates(self, check_in, check_out, exclude_booking_id=None):
         """
         Check if this specific bed is free for the given date range.
-        Returns True if no overlapping active booking exists.
+        Returns True if no overlapping active (and unexpired) booking exists.
         """
+        from django.utils import timezone
         from bookings.models import Booking
 
+        now = timezone.now()
         qs = Booking.objects.filter(
             room_type=self.room_type,
             status__in=self.ACTIVE_BOOKING_STATUSES,
             check_in__lt=check_out,   # existing starts before new guest leaves
             check_out__gt=check_in,   # existing ends after new guest arrives
+        ).exclude(
+            status__in=["pending", "payment_initiated"],
+            expires_at__isnull=False,
+            expires_at__lt=now,
         )
         if exclude_booking_id:
             qs = qs.exclude(pk=exclude_booking_id)
@@ -120,8 +126,9 @@ class Bed(SoftDeleteModel):
     def count_available_beds(room_type, check_in, check_out):
         """
         How many beds are free in this room type for the given date range?
-        Compares total active beds against number of overlapping active bookings.
+        Compares total active beds against number of overlapping active (and unexpired) bookings.
         """
+        from django.utils import timezone
         from bookings.models import Booking
 
         total_beds_count = room_type.beds.filter(is_available=True).count()
@@ -134,11 +141,16 @@ class Bed(SoftDeleteModel):
             else:
                 return 0
 
+        now = timezone.now()
         booked_count = Booking.objects.filter(
             room_type=room_type,
             status__in=Bed.ACTIVE_BOOKING_STATUSES,
             check_in__lt=check_out,
             check_out__gt=check_in,
+        ).exclude(
+            status__in=["pending", "payment_initiated"],
+            expires_at__isnull=False,
+            expires_at__lt=now,
         ).count()
 
         return max(0, total_beds_count - booked_count)

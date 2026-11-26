@@ -118,6 +118,9 @@ class AdCampaign(SoftDeleteModel):
     )
     impressions_count = models.PositiveIntegerField(default=0, help_text="Total guest impressions served")
     clicks_count = models.PositiveIntegerField(default=0, help_text="Total guest clicks received")
+    max_impressions = models.PositiveIntegerField(default=0, help_text="Maximum allowed impressions budget cap (0 = unlimited)")
+    max_clicks = models.PositiveIntegerField(default=0, help_text="Maximum allowed clicks budget cap (0 = unlimited)")
+    weight = models.PositiveIntegerField(default=1, help_text="Serving weight for weighted random selection (higher weight = served more often)")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -146,6 +149,11 @@ class AdCampaign(SoftDeleteModel):
         if self.start_date and self.start_date > now:
             return False
         if self.end_date and self.end_date < now:
+            return False
+        # Budget stop: max_impressions / max_clicks
+        if self.max_impressions > 0 and self.impressions_count >= self.max_impressions:
+            return False
+        if self.max_clicks > 0 and self.clicks_count >= self.max_clicks:
             return False
         return True
 

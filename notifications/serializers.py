@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Notification, VendorNotification
+from .models import Notification, VendorNotification, FCMDevice
 
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -18,3 +18,9 @@ class VendorNotificationSerializer(serializers.ModelSerializer):
             'related_object_id', 'is_read', 'created_at'
         ]
         read_only_fields = fields
+
+class FCMDeviceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FCMDevice
+        fields = ['id', 'registration_token', 'device_type', 'is_active', 'created_at']
+        read_only_fields = ['id', 'created_at']

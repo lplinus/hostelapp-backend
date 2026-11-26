@@ -162,6 +162,7 @@ class HotelRoomType(SoftDeleteModel):
 
     hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name="room_types")
     name = models.CharField(max_length=150, help_text="e.g. Deluxe Sea View Room")
+    room_number = models.CharField(max_length=100, blank=True, default="", help_text="Room number(s) e.g. 101, 102 or 201-205")
     room_category = models.CharField(
         max_length=30,
         choices=RoomCategory.choices,
@@ -402,7 +403,7 @@ class HotelBooking(SoftDeleteModel):
         ]:
             from django.utils import timezone
             from datetime import timedelta
-            self.expires_at = timezone.now() + timedelta(minutes=25)
+            self.expires_at = timezone.now() + timedelta(minutes=8)
 
         if self.check_in_date and self.check_out_date:
             delta = (self.check_out_date - self.check_in_date).days

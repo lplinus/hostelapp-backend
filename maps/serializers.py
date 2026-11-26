@@ -1,9 +1,44 @@
 from rest_framework import serializers
-from .models import PropertyPinpoint
+from .models import PropertyPinpoint, MapPlace
+
+
+class MapPlaceSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MapPlace
+        fields = [
+            "id",
+            "title",
+            "category",
+            "description",
+            "latitude",
+            "longitude",
+            "landmark",
+            "address",
+            "city",
+            "phone",
+            "image",
+            "image_url",
+            "link_url",
+            "content_type",
+            "object_id",
+            "is_active",
+            "is_featured",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_image_url(self, obj):
+        if obj.image:
+            return obj.image.url
+        return ""
 
 
 class PropertyPinpointSerializer(serializers.ModelSerializer):
     owner_username = serializers.CharField(source="owner.username", read_only=True)
+    distance_meters = serializers.FloatField(read_only=True, required=False)
 
     class Meta:
         model = PropertyPinpoint
@@ -27,6 +62,7 @@ class PropertyPinpointSerializer(serializers.ModelSerializer):
             "offline_map_data",
             "offline_tile_bounds",
             "is_verified",
+            "distance_meters",
             "created_at",
             "updated_at",
         ]

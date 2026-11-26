@@ -129,5 +129,28 @@ def process_broadcast_notification(sender, instance, created, **kwargs):
         if notifications_to_create:
             Notification.objects.bulk_create(notifications_to_create, batch_size=500)
 
+        # Broadcast FCM push to all registered active devices
+        try:
+            from .models import FCMDevice
+            from .firebase import send_fcm_multicast
+            all_tokens = list(
+                FCMDevice.objects.filter(is_active=True).values_list('registration_token', flat=True)
+            )
+            if all_tokens:
+                for i in range(0, len(all_tokens), 500):
+                    batch_tokens = all_tokens[i:i + 500]
+                    send_fcm_multicast(
+                        tokens=batch_tokens,
+                        title=instance.title,
+                        body=instance.message,
+                        data={
+                            'notification_type': 'system',
+                            'related_id': instance.link if instance.link else 'broadcast',
+                        },
+                        click_action=instance.link or '/notification'
+                    )
+        except Exception:
+            pass
+
         instance.is_processed = True
         instance.save(update_fields=["is_processed"])

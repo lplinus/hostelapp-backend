@@ -1,8 +1,8 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Notification, VendorNotification
-from .serializers import NotificationSerializer, VendorNotificationSerializer
+from .models import Notification, VendorNotification, FCMDevice
+from .serializers import NotificationSerializer, VendorNotificationSerializer, FCMDeviceSerializer
 
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -70,3 +70,50 @@ class VendorNotificationViewSet(viewsets.ReadOnlyModelViewSet):
     def clear_all(self, request):
         self.get_queryset().delete()
         return Response({'status': 'all notifications cleared'}, status=status.HTTP_204_NO_CONTENT)
+
+
+class FCMDeviceViewSet(viewsets.GenericViewSet):
+    """
+    Endpoints for registering and managing client FCM push tokens.
+    Supports Web browsers, iOS, and Android clients.
+    """
+    serializer_class = FCMDeviceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def create(self, request):
+        token = request.data.get('registration_token')
+        device_type = request.data.get('device_type', FCMDevice.DeviceType.WEB)
+
+        if not token:
+            return Response({'error': 'registration_token is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Upsert device token for this user
+        vendor_profile = getattr(request.user, 'vendor_profile', None)
+        device, created = FCMDevice.objects.update_or_create(
+            registration_token=token,
+            defaults={
+                'user': request.user,
+                'vendor': vendor_profile,
+                'device_type': device_type,
+                'is_active': True,
+            }
+        )
+        return Response({
+            'status': 'device registered',
+            'id': device.id,
+            'device_type': device.device_type,
+            'created': created
+        }, status=status.HTTP_200_OK if not created else status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='deactivate')
+    def deactivate(self, request):
+        token = request.data.get('registration_token')
+        if not token:
+            return Response({'error': 'registration_token is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated = FCMDevice.objects.filter(
+            registration_token=token,
+            user=request.user
+        ).update(is_active=False)
+
+        return Response({'status': 'device deactivated', 'updated_count': updated})

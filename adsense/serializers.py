@@ -18,6 +18,7 @@ class AdCampaignSerializer(serializers.ModelSerializer):
     target_property_slug = serializers.ReadOnlyField()
     target_property_address = serializers.ReadOnlyField()
     property_image_url = serializers.SerializerMethodField()
+    property_images = serializers.SerializerMethodField()
     banner_image_url = serializers.SerializerMethodField()
     ctr = serializers.ReadOnlyField()
     days_remaining = serializers.ReadOnlyField()
@@ -44,6 +45,7 @@ class AdCampaignSerializer(serializers.ModelSerializer):
             "target_property_price",
             "target_property_rating",
             "property_image_url",
+            "property_images",
             "banner_image",
             "banner_image_url",
             "destination_url",
@@ -84,6 +86,30 @@ class AdCampaignSerializer(serializers.ModelSerializer):
             if img and img.image:
                 return request.build_absolute_uri(img.image.url) if request else str(img.image)
         return None
+
+    def get_property_images(self, obj):
+        request = self.context.get("request")
+        urls = []
+        if obj.banner_image:
+            try:
+                urls.append(request.build_absolute_uri(obj.banner_image.url) if request else str(obj.banner_image.url))
+            except Exception:
+                pass
+
+        target = obj.vacation_rental or obj.hotel or obj.hostel
+        if target:
+            try:
+                for img in target.images.filter(is_deleted=0).order_by("order"):
+                    if img and img.image:
+                        try:
+                            u = request.build_absolute_uri(img.image.url) if request else str(img.image.url)
+                            if u not in urls:
+                                urls.append(u)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        return urls
 
     def get_banner_image_url(self, obj):
         if not obj.banner_image:

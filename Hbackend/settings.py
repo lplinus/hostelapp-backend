@@ -105,12 +105,14 @@ INSTALLED_APPS = [
     # Hotels & Vacation Rentals
     "hotels",
     "vacanationrentals",
+    "liveoperations",
 
     # Super Admin
     "superadmin.apps.SuperadminConfig",
 
     # Maps & Location Pinpoint
     "maps.apps.MapsConfig",
+    # 'django.contrib.gis',
 
     "django_cleanup.apps.CleanupConfig",
 ]
@@ -256,27 +258,59 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
-    # login and other troller rated
-    # "DEFAULT_THROTTLE_RATES": {
-    #     "anon": "1000/minute",
-    #     "user": "1000/minute",
-    #     "login": "100/minute",
-    #     "register": "100/minute",
-    # },
+    #login and other troller rated
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "1000/minute",
+        "user": "1000/minute",
+        "login": "100/minute",
+        "register": "100/minute",
+    },
+    #Previous (too loose) limits, kept for reference:
     "DEFAULT_THROTTLE_RATES": {
         "anon": "10000/day",
         "user": "10000/day",
         "login": "10000/minute",
         "register": "10000/minute",
     },
+    #real  to use in the production
+    # "DEFAULT_THROTTLE_RATES": {
+    #     "anon": "300/minute",        # public browsing per IP
+    #     "user": "600/minute",        # logged-in dashboards (includes polling)
+    #     "login": "10/minute",        # password guessing protection
+    #     "register": "5/minute",
+    #     "booking_otp": "5/minute",   # hotel / vacation rental OTP sends (SMS + email cost money)
+    # },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
 }
 
 
 # ========================
-# JWT CONFIG
+# JWT CONFIG (RS256 Asymmetric Encryption with .pem keys)
 # ========================
+
+JWT_PRIVATE_KEY_PATH = os.path.join(BASE_DIR, "jwt_keys", "jwt_private.pem")
+JWT_PUBLIC_KEY_PATH = os.path.join(BASE_DIR, "jwt_keys", "jwt_public.pem")
+
+JWT_SIGNING_KEY = None
+JWT_VERIFYING_KEY = None
+JWT_ALGORITHM = "HS256"
+
+if os.path.exists(JWT_PRIVATE_KEY_PATH) and os.path.exists(JWT_PUBLIC_KEY_PATH):
+    try:
+        with open(JWT_PRIVATE_KEY_PATH, "r", encoding="utf-8") as f:
+            JWT_SIGNING_KEY = f.read().strip()
+        with open(JWT_PUBLIC_KEY_PATH, "r", encoding="utf-8") as f:
+            JWT_VERIFYING_KEY = f.read().strip()
+        JWT_ALGORITHM = "RS256"
+    except Exception:
+        JWT_SIGNING_KEY = SECRET_KEY
+        JWT_VERIFYING_KEY = None
+        JWT_ALGORITHM = "HS256"
+else:
+    JWT_SIGNING_KEY = SECRET_KEY
+    JWT_VERIFYING_KEY = None
+    JWT_ALGORITHM = "HS256"
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=10),
@@ -284,6 +318,9 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
+    "ALGORITHM": JWT_ALGORITHM,
+    "SIGNING_KEY": JWT_SIGNING_KEY,
+    "VERIFYING_KEY": JWT_VERIFYING_KEY,
     "AUTH_HEADER_TYPES": ("Bearer",),
     "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
 }
@@ -527,7 +564,17 @@ CELERY_BEAT_SCHEDULE = {
         "task": "payments.tasks.reconcile_pending_payments_task",
         "schedule": 600.0,  # Runs every 10 minutes
     },
+    "warm-maps-geojson-cache-every-5-mins": {
+        "task": "maps.tasks.warm_geojson_cache_task",
+        "schedule": 300.0,  # Runs every 5 minutes
+    },
 }
+
+# Firebase Cloud Messaging (FCM) Configuration
+FIREBASE_SERVICE_ACCOUNT_PATH = config(
+    "FIREBASE_SERVICE_ACCOUNT_PATH",
+    default=os.path.join(BASE_DIR, "serviceAccountKey.json"),
+)
 
 
 

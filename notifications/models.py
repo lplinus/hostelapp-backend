@@ -62,3 +62,30 @@ class VendorNotification(SoftDeleteModel):
 
     def __str__(self):
         return f"{self.vendor.business_name} - {self.title}"
+
+
+class FCMDevice(models.Model):
+    class DeviceType(models.TextChoices):
+        WEB = 'web', 'Web Browser'
+        ANDROID = 'android', 'Android'
+        IOS = 'ios', 'iOS'
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='fcm_devices', null=True, blank=True)
+    vendor = models.ForeignKey('vendors.Vendor', on_delete=models.CASCADE, related_name='fcm_devices', null=True, blank=True)
+    registration_token = models.CharField(max_length=512, unique=True, db_index=True)
+    device_type = models.CharField(max_length=20, choices=DeviceType.choices, default=DeviceType.WEB)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['vendor', 'is_active']),
+        ]
+
+    def __str__(self):
+        owner = self.user.email if self.user else (self.vendor.business_name if self.vendor else 'Anonymous')
+        return f"{owner} - {self.device_type} ({self.registration_token[:15]}...)"
+

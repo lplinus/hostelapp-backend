@@ -110,6 +110,7 @@ class VacationRentalSerializer(serializers.ModelSerializer):
     images = VacationRentalImageSerializer(many=True, read_only=True)
     amenities_list = serializers.SerializerMethodField()
     reviews = serializers.SerializerMethodField()
+    is_sponsored = serializers.BooleanField(read_only=True, default=False)
 
     class Meta:
         model = VacationRental
@@ -166,6 +167,7 @@ class VacationRentalSerializer(serializers.ModelSerializer):
             "is_superhost",
             "is_featured",
             "is_verified",
+            "is_sponsored",
             "is_active",
             "og_image",
             "meta_title",
@@ -262,15 +264,8 @@ class VacationRentalBookingSerializer(serializers.ModelSerializer):
 
     def get_guest_id_document(self, obj):
         import os
+        # Only the account that actually made the booking can share an ID document.
         user = obj.user
-        if not user and hasattr(obj, "guest_details") and obj.guest_details:
-            from accounts.models import User
-            email = getattr(obj.guest_details, "guest_email", None)
-            phone = getattr(obj.guest_details, "mobile_number", None)
-            if email:
-                user = User.objects.filter(email__iexact=email).first()
-            if not user and phone:
-                user = User.objects.filter(phone=phone).first()
 
         if not user:
             return None
@@ -483,32 +478,23 @@ class VacationRentalBookingCreateSerializer(serializers.Serializer):
             else:
                 raise serializers.ValidationError({"otp": "Invalid or expired OTP verification code."})
 
-        # Criterion C: Verified in preceding step via BookingOTP
+        # Criterion C: Verified in the preceding step (send/verify OTP endpoints).
+        # The verified OTP must belong to the email or phone on THIS booking, be recent,
+        # and is consumed when the booking is created so it can't be reused.
         if not is_verified:
-            recent_cutoff = timezone.now() - timedelta(minutes=30)
-            has_recent_otp = BookingOTP.objects.filter(
-                is_used=True,
-                created_at__gte=recent_cutoff,
-            ).filter(
-                Q(email__iexact=guest_email) | Q(phone=mobile_number)
-            ).exists()
-            if has_recent_otp:
+            recent_cutoff = timezone.now() - timedelta(minutes=15)
+            contact_filter = Q(email__iexact=guest_email) if guest_email else Q(pk__in=[])
+            if mobile_number:
+                contact_filter |= Q(phone=mobile_number)
+            verified_otp = (
+                BookingOTP.objects.filter(is_used=True, created_at__gte=recent_cutoff)
+                .filter(contact_filter)
+                .order_by("-created_at")
+                .first()
+            )
+            if verified_otp:
                 is_verified = True
-
-        # Criterion D: Smart verification skip (prior confirmed rental or hostel booking)
-        if not is_verified:
-            has_prior_rental = VacationRentalBooking.objects.filter(
-                Q(guest_details__mobile_number=mobile_number) | Q(guest_details__guest_email__iexact=guest_email),
-                status__in=[VacationRentalBooking.BookingStatus.CONFIRMED, VacationRentalBooking.BookingStatus.CHECKED_IN, VacationRentalBooking.BookingStatus.COMPLETED],
-            ).exists()
-
-            has_prior_hostel = Booking.objects.filter(
-                Q(mobile_number=mobile_number) | Q(guest_email__iexact=guest_email),
-                status__in=["confirmed", "completed"],
-            ).exists()
-
-            if has_prior_rental or has_prior_hostel:
-                is_verified = True
+                self._verified_otp_id = verified_otp.id
 
         if not is_verified:
             raise serializers.ValidationError(
@@ -526,15 +512,15 @@ class VacationRentalBookingCreateSerializer(serializers.Serializer):
         adults = validated_data.get("adults", 1)
         children = validated_data.get("children", 0)
         request = self.context.get("request")
+        # Only link the booking to the logged-in account. Never attach it to another
+        # account just because the email/phone matches (that would leak bookings).
         user = request.user if request and request.user.is_authenticated else None
-        if not user:
-            guest_email = validated_data.get("guest_email")
-            mobile_number = validated_data.get("mobile_number")
-            from accounts.models import User
-            if guest_email:
-                user = User.objects.filter(email__iexact=guest_email).first()
-            if not user and mobile_number:
-                user = User.objects.filter(phone=mobile_number).first()
+
+        # Consume the OTP that verified this booking so it cannot be reused.
+        verified_otp_id = getattr(self, "_verified_otp_id", None)
+        if verified_otp_id:
+            from bookings.models import BookingOTP
+            BookingOTP.objects.filter(id=verified_otp_id).delete()
 
         # Re-verify availability after locking (prevents race condition between
         # two simultaneous requests that both passed the serializer validate())

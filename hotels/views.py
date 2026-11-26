@@ -1,11 +1,14 @@
+from Hbackend.throttles import BookingOTPThrottle
 from django.shortcuts import get_object_or_404
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef
 from django.utils import timezone
 from rest_framework import viewsets, permissions, decorators, status, filters
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from django_filters.rest_framework import DjangoFilterBackend
 
+from adsense.models import AdCampaign
+from adsense.services import get_active_banner_property_ids
 from .models import (
     Hotel,
     HotelRoomType,
@@ -51,18 +54,47 @@ class HotelViewSet(viewsets.ModelViewSet):
     filterset_class = HotelFilter
     search_fields = ["name", "city__name", "area__name", "address", "tagline"]
     ordering_fields = ["starting_price_per_night", "rating_avg", "star_rating", "created_at"]
+    ordering = ["-is_featured", "-rating_avg"]
 
     def get_queryset(self):
+        now = timezone.now()
+        active_sponsored = AdCampaign.objects.filter(
+            hotel=OuterRef("pk"),
+            status=AdCampaign.CampaignStatus.ACTIVE,
+            is_deleted=0,
+            start_date__lte=now,
+            end_date__gte=now,
+        )
         qs = (
             Hotel.objects.select_related("city", "area")
             .prefetch_related("amenities", "images", "room_types")
+            .annotate(is_sponsored=Exists(active_sponsored))
             .all()
         )
-        if self.request.user and self.request.user.is_authenticated:
-            return qs
         if self.action in ["list", "retrieve"]:
             # On public pages only show approved and active properties
-            return qs.filter(is_active=True, is_approved=True)
+            qs = qs.filter(is_active=True, is_approved=True)
+            # Mutual Exclusion: Exclude properties currently featured in the active Ad Banner
+            if self.action == "list":
+                city = (
+                    self.request.query_params.get("city")
+                    or self.request.query_params.get("search")
+                    or self.request.query_params.get("q")
+                    or ""
+                ).strip()
+                city_id = self.request.query_params.get("city_id")
+                city_slug = self.request.query_params.get("city_slug")
+                search_id = self.request.query_params.get("search_id") or self.request.query_params.get("banner_seed")
+                banner_hotel_ids = get_active_banner_property_ids(
+                    property_type="hotel",
+                    city=city,
+                    city_slug=city_slug,
+                    city_id=city_id,
+                    search_id=search_id,
+                )
+                if banner_hotel_ids:
+                    qs = qs.exclude(id__in=banner_hotel_ids)
+            return qs
         return qs
 
     def perform_create(self, serializer):
@@ -349,21 +381,12 @@ class HotelBookingViewSet(viewsets.ModelViewSet):
 
     # ── OTP Verification Actions (mirroring working hostel pipeline) ───────────────
 
-    @decorators.action(detail=False, methods=["post"], permission_classes=[permissions.AllowAny], url_path="send_otp")
+    @decorators.action(detail=False, methods=["post"], permission_classes=[permissions.AllowAny], url_path="send_otp", throttle_classes=[BookingOTPThrottle])
     def send_otp(self, request):
         """Sends an OTP to the phone number for hotel booking verification."""
         phone = request.data.get("phone") or request.data.get("mobile_number")
         if not phone:
             return Response({"error": "phone is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Smart verification check
-        from bookings.models import Booking
-        has_prior_booking = (
-            HotelBooking.objects.filter(guest_details__mobile_number=phone, status__in=["confirmed", "checked_in"]).exists()
-            or Booking.objects.filter(mobile_number=phone, status__in=["confirmed", "completed"]).exists()
-        )
-        if has_prior_booking:
-            return Response({"message": "Phone number already verified via previous booking", "verified": True})
 
         from bookings.services.booking_otp_service import BookingOTPService
         try:
@@ -385,7 +408,7 @@ class HotelBookingViewSet(viewsets.ModelViewSet):
             return Response({"message": "Phone verified successfully", "verified": True})
         return Response({"error": "Invalid or expired OTP"}, status=status.HTTP_400_BAD_REQUEST)
 
-    @decorators.action(detail=False, methods=["post"], permission_classes=[permissions.AllowAny], url_path="send_email_otp")
+    @decorators.action(detail=False, methods=["post"], permission_classes=[permissions.AllowAny], url_path="send_email_otp", throttle_classes=[BookingOTPThrottle])
     def send_email_otp(self, request):
         """Sends an OTP to the email address for hotel booking verification."""
         email = request.data.get("email") or request.data.get("guest_email")
@@ -435,10 +458,20 @@ class HotelBookingViewSet(viewsets.ModelViewSet):
         Returns hotel reservations for the current user.
         If the user is an owner, returns their hosted properties' bookings alongside any personal bookings.
         """
+        from django.db.models import Q
         qs = self.get_queryset()
         status_param = request.query_params.get("status")
         if status_param and status_param != "all":
             qs = qs.filter(status=status_param)
+        search_param = request.query_params.get("search")
+        if search_param:
+            search_param = search_param.strip()
+            qs = qs.filter(
+                Q(booking_reference__icontains=search_param)
+                | Q(hotel__name__icontains=search_param)
+                | Q(room_type__name__icontains=search_param)
+                | Q(guest_details__guest_name__icontains=search_param)
+            )
         serializer = HotelBookingSerializer(qs, many=True, context={"request": request})
         return Response(serializer.data)
 
@@ -450,6 +483,15 @@ class HotelBookingViewSet(viewsets.ModelViewSet):
         status_param = request.query_params.get("status")
         if status_param and status_param != "all":
             qs = qs.filter(status=status_param)
+        search_param = request.query_params.get("search")
+        if search_param:
+            search_param = search_param.strip()
+            qs = qs.filter(
+                Q(booking_reference__icontains=search_param)
+                | Q(hotel__name__icontains=search_param)
+                | Q(room_type__name__icontains=search_param)
+                | Q(guest_details__guest_name__icontains=search_param)
+            )
         serializer = HotelBookingSerializer(qs, many=True, context={"request": request})
         return Response(serializer.data)
 
@@ -526,7 +568,7 @@ class HotelBookingViewSet(viewsets.ModelViewSet):
         serializer = HotelBookingSerializer(booking, context={"request": request})
         return Response(serializer.data)
 
-    @decorators.action(detail=True, methods=["post"], permission_classes=[permissions.AllowAny], url_path="initiate-payment")
+    @decorators.action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated], url_path="initiate-payment")
     def initiate_payment(self, request, pk=None):
         """
         Transition a pending hotel booking to 'payment_initiated' and extend expiry by +20 minutes
@@ -534,6 +576,10 @@ class HotelBookingViewSet(viewsets.ModelViewSet):
         """
         from datetime import timedelta
         booking = get_object_or_404(HotelBooking, id=pk)
+
+        # Only the guest who made the booking (or staff) can move it into payment.
+        if not request.user.is_staff and booking.user_id != request.user.id:
+            return Response({"detail": "You do not own this booking."}, status=status.HTTP_403_FORBIDDEN)
 
         if booking.status not in [HotelBooking.BookingStatus.PENDING, HotelBooking.BookingStatus.PAYMENT_INITIATED]:
             return Response(
@@ -717,6 +763,8 @@ class HotelBookingViewSet(viewsets.ModelViewSet):
                 "room_type_name": room_type.name,
                 "hotel_id": str(room_type.hotel.id),
                 "hotel_name": room_type.hotel.name,
+                "hold_minutes": 8,
+                "hold_seconds": 480,
                 "message": f"{available_rooms} room(s) available of type '{room_type.name}' for {check_in} to {check_out}.",
             },
             status=status.HTTP_200_OK,
